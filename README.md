@@ -12,6 +12,7 @@
 | 4 | 四上・記敘文（敘事） | 寫一件事，先排好時間（四要素拼圖、原因經過結果骨牌、時間式／事件式／因果式、四段骨架、原因法與結果法） | 10 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-01-event-skeleton/) |
 | 5 | 四上・記敘文（敘事） | 一段裡面也要排隊（長肉：開始接著後來、由上而下、原因經過結果、先寫 a 再寫 b、從〈到超級市場〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-02-event-layers/) |
 | 6 | 四下・記敘文（記景） | 寫一處風景，跟著腳步走（審題：範圍與重點、蒐集景色與人物活動、移步法與定點法、一站一段的總分式骨架、文題相符） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-03-scene-skeleton/) |
+| 7 | 四下・記敘文（記景） | 一站裡面怎麼寫（長肉：一段裡先總後分、移步跟著腳步寫、定點由上而下、句子照到美：顏色樣子像什麼、每段最後寫感覺、從〈○○公園〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-04-scene-layers/) |
 
 ## 怎麼使用
 
