@@ -10,6 +10,7 @@
 | 2 | 三上・記敘文（寫人） | 一段裡面怎麼排？（一句一層、先寫 a 再寫 b、重點藏在 b、破題法、希望法與感想（感謝）法、替骨架長肉的細目練習） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g3-02-person-layers/) |
 | 3 | 三下・記敘文（狀物） | 寫一樣東西，眼睛怎麼走？（蒐集外觀構造功用、定點觀察與移步換景、挑一種方位順序、總分式、骨架與長肉用在寫物） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g3-03-object/) |
 | 4 | 四上・記敘文（敘事） | 寫一件事，先排好時間（四要素拼圖、原因經過結果骨牌、時間式／事件式／因果式、四段骨架、原因法與結果法） | 10 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-01-event-skeleton/) |
+| 5 | 四上・記敘文（敘事） | 一段裡面也要排隊（長肉：開始接著後來、由上而下、原因經過結果、先寫 a 再寫 b、從〈到超級市場〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-02-event-layers/) |
 
 ## 怎麼使用
 
