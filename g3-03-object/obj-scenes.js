@@ -1,0 +1,500 @@
+// 寫一樣東西，眼睛怎麼走？——三年級記敘文（狀物）第三集（場景檔：META＋s1…s9；段落、秒數、字幕在 timing.json）
+const META = {
+  title: '寫一樣東西，眼睛怎麼走？',
+  subtitle: '9 段・約 2 分鐘・三年級記敘文（狀物）第三集',
+  ariaLabel: '教學動畫：接續前兩集，以〈我的教室〉為例，說明三年級記敘文（狀物）怎麼寫一樣東西。三下開始寫物，先蒐集外觀、構造、功用、難忘的事；用方位排順序：站著不動、眼睛轉著看叫定點觀察，一邊走一邊看叫移步換景；順序有由前至後、由左至右、由上而下、由遠而近、由外而內、由整體而部分，選一種，一個方向寫一層，例如前、左、後、右；用總分式開頭，先總說再分說，最後再總結一次叫總分總；排成四塊積木，前三段寫 A，最後一段寫 B；每段一樣先寫 a 再寫 b；最後換你練習〈我家的客廳〉。',
+  note: '出處：楊裕貿〈寫作課程規劃與有效的寫作教學──輕鬆閱讀、快樂寫作〉研習講義；寫作課程設計；三年級寫作學習單。手電筒、腳印、積木、珠子、蝴蝶結是視覺比喻；教室與客廳平面圖是示意圖；示範短文〈我的教室〉依講義結構自編。鍵盤：空白鍵播放／暫停，左右方向鍵切換段落，F 鍵全螢幕。畫面只由時間決定。',
+  works: [],
+};
+
+// ===== 本集的輔助圖形與常數（一律以 obj 開頭，避免與範本與共用圖形重名）=====
+const OBJ_BLUE = '#7fb6d9';
+const OBJ_ORANGE = '#e8875b';
+const OBJ_INK = '#1a2b23';
+const OBJ_CREAM = '#efe9d8';
+const OBJ_KNOT = '#c96a40';
+const objk = (u, a, d = 0.7) => ease(P(u, a, a + d));
+const objOut = (x) => 1 - Math.pow(1 - x, 3);
+const objO = (v) => Math.max(0, Math.min(1, v)).toFixed(3);
+const objf = (n) => n.toFixed(1);
+
+// 積木：x,y 左上角；label 為空字串就不寫字；studs 是上面的小凸點
+function objBlock(x, y, w, h, col, op, label, size = 34, studs = true) {
+  if (op <= 0.002 || w <= 2 || h <= 2) return '';
+  let g = `<g opacity="${objO(op)}">`;
+  if (studs && w >= 90) {
+    const n = Math.max(2, Math.floor(w / 120));
+    for (let i = 0; i < n; i++) g += `<rect x="${objf(x + w * (i + 0.5) / n - 20)}" y="${objf(y - 10)}" width="40" height="12" rx="6" fill="${col}"/>`;
+  }
+  g += `<rect x="${objf(x)}" y="${objf(y)}" width="${objf(w)}" height="${objf(h)}" rx="14" fill="${col}" stroke="rgba(26,43,35,.45)" stroke-width="3"/>`;
+  if (label) g += txt(x + w / 2, y + h / 2 + size * 0.35, label, { a: 'middle', s: size, w: 1, f: OBJ_INK });
+  return g + '</g>';
+}
+// 粉筆直線，k 是畫到哪裡（0–1）
+function objLine(x1, y1, x2, y2, k, col = C.chalk, w = 4, op = 1) {
+  if (k <= 0.001) return '';
+  return `<line x1="${x1}" y1="${y1}" x2="${objf(lerp(x1, x2, k))}" y2="${objf(lerp(y1, y2, k))}" stroke="${col}" stroke-width="${w}" stroke-linecap="round" opacity="${objO(op)}"/>`;
+}
+// 粉筆描線：d 是路徑，k 是描到哪裡
+function objPath(d, k, col = C.chalk, w = 6, op = 1) {
+  if (k <= 0.001) return '';
+  return `<path d="${d}" pathLength="100" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${(Math.min(1, k) * 100).toFixed(2)} 100" opacity="${objO(op)}"/>`;
+}
+// 右上角小標（比喻）
+function objTag(op, label = '比喻', color = C.orange, w = 160) {
+  return `<g opacity="${objO(op)}">${box(1540 - w, 56, w, 60, color, 1, C.deep)}${txt(1540 - w / 2, 98, label, { a: 'middle', s: 30, w: 1, f: color })}</g>`;
+}
+// 泡泡：lop 是裡面字的透明度
+function objBubble(cx, cy, r, label, col, op, size = 34, lop = 1) {
+  if (op <= 0.002 || r <= 1) return '';
+  return `<g opacity="${objO(op)}"><circle cx="${objf(cx)}" cy="${objf(cy)}" r="${objf(r)}" fill="${col}" fill-opacity=".16" stroke="${col}" stroke-width="5"/>` +
+    `<path d="M${objf(cx - r * 0.58)} ${objf(cy - r * 0.42)} A${objf(r * 0.72)} ${objf(r * 0.72)} 0 0 1 ${objf(cx - r * 0.1)} ${objf(cy - r * 0.78)}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" opacity=".6"/>` +
+    (lop > 0.002 ? txt(cx, cy + size * 0.35, label, { a: 'middle', s: size, w: 1, f: col, o: lop }) : '') + '</g>';
+}
+// 落下：先加速落地，再小彈一下；回傳 1（高處）→ 0（落地）
+function objDrop(k) {
+  if (k <= 0) return 1;
+  if (k >= 1) return 0;
+  if (k < 0.78) { const f = k / 0.78; return 1 - f * f; }
+  return 0.06 * Math.sin(Math.PI * (k - 0.78) / 0.22);
+}
+// 水平縮放翻面：sx 為 0–1，繞 cx 縮放
+const objFlipOpen = (cx, sx) => `<g transform="translate(${cx} 0) scale(${Math.max(sx, 0.001).toFixed(3)} 1) translate(${-cx} 0)">`;
+// 逐句出現：淡入加一點向上位移
+function objSent(x, y, s, size, k, col = C.chalk, op = 1) {
+  if (k <= 0.002) return '';
+  return txt(x, y + (1 - k) * 16, s, { s: size, w: 1, f: col, o: k * op });
+}
+// 沿折線取點：s 是走過的距離，回傳 [x, y, 朝向（度）]
+function objPoly(pts, s) {
+  let rest = Math.max(0, s);
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1], L = Math.hypot(dx, dy);
+    if (rest <= L || i === pts.length - 1) {
+      const f = L ? Math.min(1, rest / L) : 1;
+      return [pts[i - 1][0] + dx * f, pts[i - 1][1] + dy * f, Math.atan2(dy, dx) * 180 / Math.PI];
+    }
+    rest -= L;
+  }
+  return [pts[0][0], pts[0][1], 0];
+}
+const objPolyLen = (pts) => pts.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0);
+
+// 藍色珠子（a）與橘色蝴蝶結（b）：比喻（外觀同第二集）
+const OBJ_BR = 34;
+function objBead(cx, cy, sc, op = 1) {
+  const r = OBJ_BR * sc;
+  if (op <= 0.002 || r <= 1) return '';
+  return `<g opacity="${objO(op)}"><circle cx="${objf(cx)}" cy="${objf(cy)}" r="${objf(r)}" fill="${OBJ_BLUE}" stroke="rgba(26,43,35,.5)" stroke-width="3"/>` +
+    `<ellipse cx="${objf(cx - r * 0.38)}" cy="${objf(cy - r * 0.42)}" rx="${objf(r * 0.26)}" ry="${objf(r * 0.15)}" fill="#ffffff" opacity=".5" transform="rotate(-35 ${objf(cx - r * 0.38)} ${objf(cy - r * 0.42)})"/>` +
+    (r >= 26 ? txt(cx, cy + 11, 'a', { a: 'middle', s: 32, w: 1, f: OBJ_INK }) : '') + '</g>';
+}
+function objBow(cx, cy, sc, op = 1) {
+  if (op <= 0.002 || sc <= 0.05) return '';
+  const w = 64 * sc, h = 40 * sc, kr = 19 * sc, st = 'rgba(26,43,35,.5)';
+  return `<g opacity="${objO(op)}"><polygon points="${objf(cx - 6 * sc)},${objf(cy)} ${objf(cx - w)},${objf(cy - h)} ${objf(cx - w)},${objf(cy + h)}" fill="${OBJ_ORANGE}" stroke="${st}" stroke-width="3" stroke-linejoin="round"/>` +
+    `<polygon points="${objf(cx + 6 * sc)},${objf(cy)} ${objf(cx + w)},${objf(cy - h)} ${objf(cx + w)},${objf(cy + h)}" fill="${OBJ_ORANGE}" stroke="${st}" stroke-width="3" stroke-linejoin="round"/>` +
+    `<circle cx="${objf(cx)}" cy="${objf(cy)}" r="${objf(kr)}" fill="${OBJ_KNOT}" stroke="${st}" stroke-width="3"/>` +
+    (sc >= 0.7 ? txt(cx, cy + 8, 'b', { a: 'middle', s: 24, w: 1, f: OBJ_CREAM }) : '') + '</g>';
+}
+const objPiece = (kind, x, y, sc, op = 1) => (kind === 'a' ? objBead(x, y, sc, op) : objBow(x, y, sc, op));
+
+// 第一集的簡筆老師（圓眼鏡、短髮）：cx 是人像中心的 x，dy 是往下平移量
+function objTeacher(cx, dy, op) {
+  return `<g opacity="${objO(op)}" stroke-linejoin="round" transform="translate(${cx - 800} ${dy})">` +
+    `<path d="M715 650 Q715 508 800 508 Q885 508 885 650 Z" fill="${OBJ_BLUE}" stroke="${C.chalk}" stroke-width="4"/>` +
+    `<circle cx="800" cy="440" r="54" fill="#f0d9bd" stroke="${C.chalk}" stroke-width="4"/>` +
+    `<path d="M746 436 Q748 380 800 380 Q852 380 854 436 Q832 408 800 408 Q768 408 746 436 Z" fill="#4a3a2e" stroke="${C.chalk}" stroke-width="3"/>` +
+    `<circle cx="778" cy="446" r="15" fill="none" stroke="${OBJ_INK}" stroke-width="4"/><circle cx="822" cy="446" r="15" fill="none" stroke="${OBJ_INK}" stroke-width="4"/>` +
+    `<line x1="793" y1="446" x2="807" y2="446" stroke="${OBJ_INK}" stroke-width="4"/>` +
+    `<circle cx="778" cy="446" r="3" fill="${OBJ_INK}"/><circle cx="822" cy="446" r="3" fill="${OBJ_INK}"/>` +
+    `<path d="M783 470 Q800 484 817 470" fill="none" stroke="${OBJ_INK}" stroke-width="4" stroke-linecap="round"/></g>`;
+}
+// 俯視小人：ang 是面向的角度（SVG 角度，−90＝朝上），頭上有黃色小三角表示面向
+function objMan(cx, cy, ang, op = 1, sc = 1) {
+  return `<g opacity="${objO(op)}" transform="translate(${objf(cx)} ${objf(cy)}) rotate(${objf(ang + 90)}) scale(${sc})" stroke-linejoin="round">` +
+    `<ellipse cx="0" cy="6" rx="27" ry="13" fill="${OBJ_BLUE}" stroke="${C.chalk}" stroke-width="3"/>` +
+    `<circle cx="0" cy="0" r="17" fill="#f0d9bd" stroke="${C.chalk}" stroke-width="3"/>` +
+    `<polygon points="-9,-18 9,-18 0,-34" fill="${C.yellow}" stroke="${OBJ_INK}" stroke-width="2"/></g>`;
+}
+
+// ===== 教室正面（s1 逐條畫出、s2 縮小放中間）：[路徑, 開始秒, 結束秒] =====
+const OBJ_HOUSE = [
+  ['M780 680 L1500 680', 1.2, 1.9],
+  ['M840 680 L840 410', 1.9, 2.5],
+  ['M1440 680 L1440 410', 2.3, 2.9],
+  ['M800 410 L1140 310 L1480 410', 3.0, 4.2],
+  ['M1100 680 L1100 560 L1180 560 L1180 680', 4.3, 5.0],
+  ['M890 470 L1030 470 L1030 560 L890 560 Z M960 470 L960 560 M890 515 L1030 515', 5.1, 5.8],
+  ['M1250 470 L1390 470 L1390 560 L1250 560 Z M1320 470 L1320 560 M1250 515 L1390 515', 5.8, 6.5],
+];
+const OBJ_HOUSE_STATIC = OBJ_HOUSE.map(([d]) => `<path d="${d}" fill="none" stroke="${C.chalk}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+
+// ===== 教室平面圖（s3、s4 共用，俯視示意）=====
+const OBJ_RX0 = 480, OBJ_RX1 = 1040, OBJ_RY0 = 230, OBJ_RY1 = 760, OBJ_CX = 760, OBJ_CY = 495;
+// 四處物件：0 前（黑板和講桌）1 左（窗戶）2 後（布告欄）3 右（置物櫃）
+const OBJ_NAME = ['黑板和講桌', '窗戶', '布告欄', '置物櫃'];
+const OBJ_DIR = [-90, -180, -270, -360]; // 光束朝向：前、左、後、右（逆時針轉）
+function objRoom(op = 1) {
+  const w = (d) => `<path d="${d}" fill="none" stroke="${C.chalk}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return `<g opacity="${objO(op)}">` +
+    w(`M${OBJ_RX0} ${OBJ_RY1} L${OBJ_RX0} ${OBJ_RY0} L${OBJ_RX1} ${OBJ_RY0} L${OBJ_RX1} ${OBJ_RY1} L1020 ${OBJ_RY1}`) +
+    w(`M${OBJ_RX0} ${OBJ_RY1} L940 ${OBJ_RY1}`) +
+    // 門：門板往內開，虛線弧表示開門的範圍
+    `<line x1="940" y1="${OBJ_RY1}" x2="940" y2="690" stroke="${C.dim}" stroke-width="4" stroke-linecap="round"/>` +
+    `<path d="M940 690 A70 70 0 0 1 1010 ${OBJ_RY1}" fill="none" stroke="${C.dim}" stroke-width="3" stroke-dasharray="7 7"/>` +
+    '</g>';
+}
+// 物件圖示：lit 是亮起的程度（0–1），base 是沒亮時的亮度
+function objItem(i, lit, base) {
+  const col = lit > 0.5 ? C.yellow : C.chalk, sw = 4, fl = lit > 0.5 ? 'rgba(242,193,78,.32)' : 'rgba(239,233,216,.08)';
+  const op = base + (1 - base) * lit;
+  let g = '';
+  const R = (x, y, w, h, f = fl) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${f}" stroke="${col}" stroke-width="${sw}"/>`;
+  if (i === 0) {
+    g += `<rect x="594" y="238" width="330" height="62" rx="14" fill="${C.yellow}" opacity="${objO(0.2 * lit)}"/>`;
+    g += R(610, 246, 210, 24) + R(850, 248, 50, 42);
+  } else if (i === 1) {
+    g += `<rect x="478" y="390" width="48" height="210" rx="12" fill="${C.yellow}" opacity="${objO(0.2 * lit)}"/>`;
+    g += R(486, 400, 28, 190) + `<line x1="486" y1="463.3" x2="514" y2="463.3" stroke="${col}" stroke-width="${sw}"/><line x1="486" y1="526.7" x2="514" y2="526.7" stroke="${col}" stroke-width="${sw}"/>`;
+  } else if (i === 2) {
+    g += `<rect x="626" y="706" width="288" height="52" rx="12" fill="${C.yellow}" opacity="${objO(0.2 * lit)}"/>`;
+    g += R(640, 718, 260, 36, 'none');
+    for (let j = 0; j < 4; j++) g += R(654 + j * 58, 725, 34, 22);
+  } else {
+    g += `<rect x="998" y="390" width="48" height="210" rx="12" fill="${C.yellow}" opacity="${objO(0.2 * lit)}"/>`;
+    g += R(1006, 400, 30, 190, 'none');
+    for (let j = 0; j < 6; j++) g += R(1010, 404 + j * 31.4, 22, 27);
+  }
+  return `<g opacity="${objO(op)}">${g}</g>`;
+}
+// 物件標字：四個位置都在教室外面，不和光束、路徑相交
+function objLabel(i, k, lit) {
+  if (k <= 0.002) return '';
+  const col = lit > 0.5 ? C.yellow : C.chalk;
+  const pos = [[755, 212, 'middle'], [462, 506, 'end'], [770, 800, 'middle'], [1058, 506, 'start']][i];
+  return txt(pos[0], pos[1], OBJ_NAME[i], { a: pos[2], s: 28, w: 1, f: col, o: k });
+}
+function objDoorLabel(op) { return txt(980, 802, '門', { a: 'middle', s: 26, f: C.dim, o: op }); }
+// 右側定義卡
+function objDefCard(op, title, l1, l2, note) {
+  if (op <= 0.002) return '';
+  return `<g opacity="${objO(op)}">${box(1220, 330, 320, 210, C.yellow, 1, C.deep)}` +
+    txt(1380, 394, title, { a: 'middle', s: 42, w: 1, f: C.yellow }) +
+    txt(1380, 454, l1, { a: 'middle', s: 34, w: 1 }) + txt(1380, 506, l2, { a: 'middle', s: 34, w: 1 }) +
+    txt(1220, 590, note, { s: 26, f: C.dim }) + '</g>';
+}
+// 扇形光束
+function objSector(cx, cy, R, ang, half) {
+  const a0 = (ang - half) * Math.PI / 180, a1 = (ang + half) * Math.PI / 180;
+  return `M${cx} ${cy} L${objf(cx + R * Math.cos(a0))} ${objf(cy + R * Math.sin(a0))} A${R} ${R} 0 0 1 ${objf(cx + R * Math.cos(a1))} ${objf(cy + R * Math.sin(a1))} Z`;
+}
+
+// 示範短文〈我的教室〉第二段（自編；逐句，一字不改）
+const OBJ_P2 = ['教室前面是一大片黑板，旁邊放著老師的講桌。', '左邊有一排窗戶，陽光從窗外照進來。', '坐在窗邊暖暖的，好舒服。'];
+
+// ---------- s1 換寫一樣東西 ----------
+function obj1(u) {
+  let g = head(u, '開場', '換寫一樣東西');
+  // 左：第一集的老師人像，紅叉畫上後一起淡出
+  const tf = objk(u, 0.3, 0.8) * (1 - objk(u, 3.6, 0.8));
+  g += objTeacher(300, 0, tf);
+  g += txt(300, 700, '前兩集：寫人', { a: 'middle', s: 30, w: 1, f: C.dim, o: tf });
+  const c1 = P(u, 2.0, 2.5), c2 = P(u, 2.5, 3.0);
+  g += `<g opacity="${objO(1 - objk(u, 3.6, 0.8))}">` + objLine(220, 370, 380, 530, c1, C.red, 14) + objLine(380, 370, 220, 530, c2, C.red, 14) + '</g>';
+  // 右：粉筆逐條畫出教室正面
+  OBJ_HOUSE.forEach(([d, a, b]) => { g += objPath(d, P(u, a, b), C.chalk, 6); });
+  // 題目〈我的教室〉一個字一個字寫上
+  [['〈', 960], ['我', 1010], ['的', 1074], ['教', 1138], ['室', 1202], ['〉', 1260]].forEach(([c, x], i) => {
+    const k = objk(u, 6.4 + i * 0.22, 0.4);
+    g += txt(x, 268 + (1 - k) * 14, c, { a: 'middle', s: 62, w: 1, f: C.yellow, o: k });
+  });
+  // 字卡
+  const ck = objk(u, 8.0, 0.8);
+  g += `<g opacity="${objO(ck)}" transform="translate(${((1 - ck) * 50).toFixed(1)} 0)">${box(100, 722, 620, 88, C.chalk, 1, C.deep)}` +
+    txt(130, 782, '寫人', { s: 40, w: 1, f: C.blue }) + arrow(240, 766, 330, 766, C.chalk, 1, false, objk(u, 8.6, 0.5)) +
+    txt(350, 782, '寫物（狀物）', { s: 40, w: 1, f: C.yellow }) + '</g>';
+  g += txt(100, 856, '三下先學：狀物', { c: 't-body', s: 30, f: C.dim, o: objk(u, 9.4, 0.7) });
+  return g;
+}
+
+// ---------- s2 蒐集材料 ----------
+const OBJ_BUB = [['外觀', C.blue, 400, 330], ['構造', C.yellow, 1200, 330], ['功用', C.green, 400, 640], ['難忘的事', '#e3b7d6', 1200, 640]];
+function obj2(u) {
+  let g = head(u, '動筆之前', '蒐集材料');
+  const hk = objk(u, 0.3, 0.9);
+  g += `<g opacity="${objO(hk)}" transform="translate(800 480) scale(0.85) translate(-1140 -495)">${OBJ_HOUSE_STATIC}</g>`;
+  g += txt(800, 705, '題目：我的教室', { a: 'middle', s: 34, w: 1, f: C.chalk, o: objk(u, 1.0, 0.6) });
+  OBJ_BUB.forEach(([lab, col, tx, ty], i) => {
+    const t0 = 2.0 + i * 2.2, f = objOut(P(u, t0, t0 + 1.1));
+    if (f <= 0) return;
+    g += objBubble(lerp(800, tx, f), lerp(480, ty, f), 84 * (0.25 + 0.75 * f), lab, col, Math.min(1, f * 3), lab.length >= 4 ? 30 : 38);
+  });
+  g += txt(1318, 662, '……', { a: 'start', s: 52, w: 1, f: C.chalk, o: objk(u, 10.6, 0.7) });
+  return g;
+}
+
+// ---------- s3 站著看一圈：定點觀察 ----------
+function obj3(u) {
+  let g = head(u, '方位', '站著看一圈：定點觀察') + objTag(objk(u, 0.4, 0.5));
+  g += objRoom(objk(u, 0.2, 0.8));
+  const LIT = [2.1, 4.3, 6.9, 9.5], BADGE = [1.9, 4.2, 6.8, 9.4], LAB = [2.3, 4.5, 7.1, 9.7], LEAVE = [3.2, 5.8, 8.4];
+  const lit = LIT.map((t) => objk(u, t, 0.5));
+  for (let i = 0; i < 4; i++) g += objItem(i, lit[i], 0.6 * objk(u, 0.6, 0.6));
+  g += objDoorLabel(objk(u, 0.8, 0.6));
+  // 光束：旋轉過渡（逆時針：前→左→後→右）
+  let ang = -90;
+  [[3.2, 4.2, -90, -180], [5.8, 6.8, -180, -270], [8.4, 9.4, -270, -360]].forEach(([s, e, f, t]) => { if (u >= s) ang = lerp(f, t, ease(P(u, s, e))); });
+  const bo = objk(u, 1.4, 0.5);
+  g += `<defs><radialGradient id="objBeam" gradientUnits="userSpaceOnUse" cx="${OBJ_CX}" cy="${OBJ_CY}" r="250"><stop offset="0" stop-color="#f2c14e" stop-opacity=".62"/><stop offset="1" stop-color="#f2c14e" stop-opacity=".16"/></radialGradient></defs>`;
+  // 光束停過的痕跡
+  for (let i = 0; i < 3; i++) {
+    const tr = objk(u, LEAVE[i], 0.6);
+    if (tr > 0.01) g += `<path d="${objSector(OBJ_CX, OBJ_CY, 250, OBJ_DIR[i], 24)}" fill="${C.yellow}" opacity="${objO(0.16 * tr)}"/>`;
+  }
+  if (bo > 0.01) g += `<path d="${objSector(OBJ_CX, OBJ_CY, 250, ang, 24)}" fill="url(#objBeam)" opacity="${objO(bo)}"/>`;
+  // 小人與 1～4 號圓牌（在光束根部旁）
+  g += objMan(OBJ_CX, OBJ_CY, bo > 0.01 ? ang : -90, objk(u, 0.8, 0.6));
+  for (let i = 0; i < 4; i++) {
+    const k = objOut(P(u, BADGE[i], BADGE[i] + 0.4));
+    if (k <= 0.002) continue;
+    const a = OBJ_DIR[i] * Math.PI / 180, bx = OBJ_CX + 66 * Math.cos(a), by = OBJ_CY + 66 * Math.sin(a);
+    g += `<g opacity="${objO(k)}"><circle cx="${objf(bx)}" cy="${objf(by)}" r="${objf(25 * k)}" fill="${C.deep}" stroke="${C.yellow}" stroke-width="4"/>` +
+      txt(bx, by + 10, String(i + 1), { a: 'middle', s: 28, w: 1, f: C.yellow, o: k }) + '</g>';
+  }
+  for (let i = 0; i < 4; i++) g += objLabel(i, objk(u, LAB[i], 0.5), lit[i]);
+  g += objDefCard(objk(u, 10.4, 0.7), '定點觀察', '站著不動，', '眼睛轉著看', '光束＝視線（比喻）');
+  g += txt(80, 842, '教室平面圖：示意圖', { c: 't-body', s: 24, f: C.dim, o: objk(u, 0.8, 0.6) });
+  return g;
+}
+
+// ---------- s4 邊走邊看：移步換景 ----------
+const OBJ_FY = 338; // 走在前面時的 y（離黑板和講桌遠一點，腳印才不會壓到物件）
+const OBJ_PATH = [[980, 752], [958, 690], [958, OBJ_FY], [565, OBJ_FY], [565, 690], [905, 690]];
+// 經過各物件時走過的距離：前、左、後、右
+function objTrig() {
+  const L = [0]; for (let i = 1; i < OBJ_PATH.length; i++) L.push(L[i - 1] + Math.hypot(OBJ_PATH[i][0] - OBJ_PATH[i - 1][0], OBJ_PATH[i][1] - OBJ_PATH[i - 1][1]));
+  return [L[2] + (958 - 800), L[3] + (495 - OBJ_FY), L[4] + (750 - 565), L[1] + (690 - 495)];
+}
+function obj4(u) {
+  let g = head(u, '方位', '邊走邊看：移步換景') + objTag(objk(u, 0.4, 0.5));
+  g += objRoom(1);
+  const TOT = objPolyLen(OBJ_PATH), TRIG = objTrig();
+  const kw = P(u, 1.8, 9.0), walk = kw * 0.85 + 0.15 * ease(kw), s = TOT * walk;
+  const lit = TRIG.map((t) => (u < 1.8 ? 0 : ease(P(s, t - 60, t))));
+  for (let i = 0; i < 4; i++) g += objItem(i, lit[i], 0.32);
+  g += objDoorLabel(1);
+  // 虛線路徑（先畫好，小人沿著走）
+  const pd = 'M' + OBJ_PATH.map((p) => p.join(' ')).join(' L');
+  const pk = P(u, 0.6, 1.5);
+  g += pk >= 1 ? `<path d="${pd}" fill="none" stroke="${C.dim}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 12"/>` : objPath(pd, pk, C.dim, 5, 1);
+  // 腳印：成對小橢圓，走過才出現
+  for (let i = 0; ; i++) {
+    const si = 34 + i * 44;
+    if (si > TOT) break;
+    const f = P(s, si, si + 14);
+    if (f <= 0) continue;
+    const [x, y, a] = objPoly(OBJ_PATH, si), r = a * Math.PI / 180, side = i % 2 ? 1 : -1;
+    const fx = x + side * 12 * Math.cos(r + Math.PI / 2), fy = y + side * 12 * Math.sin(r + Math.PI / 2);
+    g += `<ellipse cx="${objf(fx)}" cy="${objf(fy)}" rx="8" ry="13" transform="rotate(${objf(a - 90)} ${objf(fx)} ${objf(fy)})" fill="${C.chalk}" opacity="${objO(0.7 * f)}"/>`;
+  }
+  // 小人
+  const [px, py, pa] = objPoly(OBJ_PATH, s);
+  g += objMan(px, py, u < 1.8 ? objPoly(OBJ_PATH, 0)[2] : pa, objk(u, 1.0, 0.5));
+  for (let i = 0; i < 4; i++) g += objLabel(i, ease(P(s, TRIG[i] - 20, TRIG[i] + 60)) * (u < 1.8 ? 0 : 1), lit[i]);
+  g += objDefCard(objk(u, 9.3, 0.7), '移步換景', '走到哪，', '寫到哪', '腳印＝腳步（比喻）');
+  g += txt(80, 842, '教室平面圖：示意圖', { c: 't-body', s: 24, f: C.dim, o: objk(u, 0.6, 0.6) });
+  return g;
+}
+
+// ---------- s5 挑一種順序 ----------
+const OBJ_ORD = ['由前至後', '由左至右', '由上而下', '由遠而近', '由外而內', '由整體而部分'];
+function obj5(u) {
+  let g = head(u, '方位', '挑一種順序');
+  OBJ_ORD.forEach((lab, i) => {
+    const cx = 300 + (i % 3) * 500, y = i < 3 ? 200 : 340, x = cx - 200;
+    const ap = objk(u, 0.3 + i * 0.12, 0.6), t0 = 1.5 + i * 0.95, fk = P(u, t0, t0 + 0.8), sx = Math.abs(Math.cos(Math.PI * fk));
+    g += objFlipOpen(cx, sx);
+    if (fk < 0.5) {
+      g += `<g opacity="${objO(ap)}"><rect x="${x}" y="${y}" width="400" height="110" rx="18" fill="${C.deep}" stroke="${C.dim}" stroke-width="4"/>` +
+        txt(cx, y + 72, '？', { a: 'middle', s: 54, w: 1, f: C.dim }) + '</g>';
+    } else {
+      g += `<g opacity="${objO(ap)}"><rect x="${x}" y="${y}" width="400" height="110" rx="18" fill="${OBJ_CREAM}" stroke="${C.chalk}" stroke-width="4"/>` +
+        txt(cx, y + 70, lab, { a: 'middle', s: 40, w: 1, f: OBJ_INK }) + '</g>';
+    }
+    g += '</g>';
+  });
+  // 第七張：前→左→後→右，被黃框選中、放大
+  const k7 = objk(u, 8.0, 0.7), sel = objk(u, 9.0, 0.5), sc = 1 + 0.2 * objk(u, 9.3, 0.8);
+  if (k7 > 0.002) {
+    g += `<g opacity="${objO(k7)}" transform="translate(800 650) scale(${sc.toFixed(3)}) translate(-800 -650)">` +
+      `<rect x="570" y="595" width="460" height="110" rx="18" fill="${sel > 0.5 ? 'rgba(242,193,78,.2)' : OBJ_CREAM}" stroke="${sel > 0.5 ? C.yellow : C.chalk}" stroke-width="4"/>` +
+      txt(800, 664, '前→左→後→右', { a: 'middle', s: 42, w: 1, f: sel > 0.5 ? C.yellow : OBJ_INK }) +
+      (sel > 0.002 ? `<rect x="552" y="577" width="496" height="146" rx="26" fill="none" stroke="${C.yellow}" stroke-width="${(4 + 2 * sel).toFixed(1)}" stroke-dasharray="16 12" opacity="${objO(sel)}"/>` : '') + '</g>';
+  }
+  g += txt(800, 818, '選好一種順序，一個方向寫一層', { a: 'middle', s: 42, w: 1, f: C.yellow, o: objk(u, 10.0, 0.7) });
+  return g;
+}
+
+// ---------- s6 先總說，再分說 ----------
+function obj6(u) {
+  let g = head(u, '結構', '先總說，再分說');
+  // 上方大框（總）
+  const bk = objk(u, 0.3, 0.7);
+  g += `<g opacity="${objO(bk)}">${box(400, 195, 800, 105, C.yellow, 1, C.deep)}</g>`;
+  g += `<g opacity="${objO(objk(u, 0.6, 0.5))}"><circle cx="340" cy="248" r="40" fill="${C.deep}" stroke="${C.yellow}" stroke-width="5"/>${txt(340, 262, '總', { a: 'middle', s: 40, w: 1, f: C.yellow })}</g>`;
+  const S = '教室裡的東西擺得整整齊齊', n = Math.floor(P(u, 1.0, 4.0) * S.length + 0.0001);
+  if (n > 0) g += txt(800, 262, S.slice(0, n), { a: 'middle', s: 42, w: 1 });
+  // 四條線分到四個小框（分）
+  const CX = [440, 680, 920, 1160], LB = ['前', '左', '後', '右'];
+  g += `<g opacity="${objO(objk(u, 4.6, 0.5))}"><circle cx="285" cy="515" r="40" fill="${C.deep}" stroke="${C.blue}" stroke-width="5"/>${txt(285, 529, '分', { a: 'middle', s: 40, w: 1, f: C.blue })}</g>`;
+  for (let i = 0; i < 4; i++) {
+    const t0 = 4.6 + i * 1.2, k = P(u, t0, t0 + 0.9);
+    g += objLine(800, 300, CX[i], 470, ease(k), C.chalk, 5, 1);
+    const bo = objk(u, t0 + 0.8, 0.5);
+    if (bo > 0.002) g += `<g opacity="${objO(bo)}">${box(CX[i] - 100, 470, 200, 90, C.blue, 1, C.deep)}${txt(CX[i], 530, LB[i], { a: 'middle', s: 46, w: 1, f: C.blue })}</g>`;
+  }
+  // 旁標：總分式
+  const co = objk(u, 9.6, 0.7);
+  if (co > 0.002) g += `<g opacity="${objO(co)}">${box(1310, 350, 230, 150, C.yellow, 1, C.deep)}${txt(1425, 410, '總分式', { a: 'middle', s: 42, w: 1, f: C.yellow })}${txt(1425, 466, '總、分、分', { a: 'middle', s: 34, w: 1 })}</g>`;
+  // 最後再總結一次＝總分總
+  const gk = objk(u, 10.8, 0.7);
+  if (gk > 0.002) {
+    g += `<g opacity="${objO(gk)}">`;
+    for (let i = 0; i < 4; i++) g += `<line x1="${CX[i]}" y1="565" x2="${CX[i]}" y2="618" stroke="${C.dim}" stroke-width="4" stroke-dasharray="9 8" stroke-linecap="round"/>`;
+    g += `<rect x="400" y="620" width="800" height="80" rx="18" fill="none" stroke="${C.yellow}" stroke-width="4" stroke-dasharray="16 12"/>${txt(800, 674, '總', { a: 'middle', s: 42, w: 1, f: C.yellow })}</g>`;
+  }
+  g += txt(800, 790, '最後再總結一次＝總分總', { a: 'middle', s: 40, w: 1, f: C.yellow, o: objk(u, 11.2, 0.7) });
+  return g;
+}
+
+// ---------- s7 排成四塊積木 ----------
+const OBJ_BX = [100, 460, 820, 1180], OBJ_BY = 470, OBJ_BW = 320, OBJ_BH = 150;
+const OBJ_BCOL = [OBJ_BLUE, OBJ_BLUE, OBJ_BLUE, OBJ_ORANGE];
+const OBJ_BLAB = ['教室的整體（總）', '前面和左邊', '後面和右邊', '我對教室的感覺'];
+function obj7(u) {
+  let g = head(u, '結構', '排成四塊積木');
+  for (let i = 0; i < 4; i++) {
+    const t0 = 1.0 + i * 1.6, k = P(u, t0, t0 + 1.0), y = OBJ_BY - objDrop(k) * 280;
+    g += objBlock(OBJ_BX[i], y, OBJ_BW, OBJ_BH, OBJ_BCOL[i], Math.min(1, k * 4), '', 32);
+    const lk = objk(u, t0 + 0.9, 0.4);
+    if (lk > 0.002) g += txt(OBJ_BX[i] + OBJ_BW / 2, OBJ_BY + OBJ_BH / 2 + 11, OBJ_BLAB[i], { a: 'middle', s: 32, w: 1, f: OBJ_INK, o: lk });
+    const sk = objk(u, t0 + 1.3, 0.5);
+    g += txt(OBJ_BX[i] + OBJ_BW / 2, 680, i < 3 ? `段${'一二三'[i]}　A` : '段四　B', { a: 'middle', s: 30, w: 1, f: i < 3 ? C.blue : C.orange, o: sk });
+  }
+  // 第二、三塊上方各貼兩個方向小箭頭
+  [[1, 'up', 'left', '前', '左', 7.4], [2, 'down', 'right', '後', '右', 8.6]].forEach(([i, v, h, tv, th, t0]) => {
+    const cx = OBJ_BX[i] + OBJ_BW / 2, ak = P(u, t0, t0 + 0.7), to = objk(u, t0 + 0.6, 0.5);
+    if (ak <= 0.01) return;
+    // 兩個小標記並排，整組都在積木左右邊界（cx±160）內：左邊「↑前」或「↓後」，右邊「←左」或「→右」
+    if (v === 'up') g += arrow(cx - 105, 445, cx - 105, 382, C.yellow, 1, false, ak);
+    else g += arrow(cx - 105, 382, cx - 105, 445, C.yellow, 1, false, ak);
+    g += txt(cx - 62, 426, tv, { a: 'middle', s: 34, w: 1, f: C.yellow, o: to });
+    if (h === 'left') g += arrow(cx + 105, 413, cx + 40, 413, C.yellow, 1, false, ak);
+    else g += arrow(cx + 40, 413, cx + 105, 413, C.yellow, 1, false, ak);
+    g += txt(cx + 130, 426, th, { a: 'middle', s: 34, w: 1, f: C.yellow, o: to });
+  });
+  const yo = objk(u, 10.2, 0.8);
+  g += txt(800, 262, '前三段 A，最後一段 B', { a: 'middle', s: 46, w: 1, f: C.yellow, o: yo });
+  g += underline(520, 1080, 282, objk(u, 10.8, 0.6), C.yellow, yo);
+  return g;
+}
+
+// ---------- s8 每塊長出肉 ----------
+const OBJ8_ROW = [395, 485, 575], OBJ8_KIND = ['a', 'a', 'b'], OBJ8_BX = [380, 540, 740];
+function obj8(u) {
+  let g = head(u, '結構', '每塊長出肉');
+  // 四塊積木先在下方，其他三塊淡出後，第二塊放大到上方
+  const fo = objk(u, 0.1, 0.4), other = 1 - objk(u, 0.4, 0.6), mv = objk(u, 1.1, 1.1);
+  for (let i = 0; i < 4; i++) {
+    if (i === 1) continue;
+    g += objBlock(OBJ_BX[i], OBJ_BY, OBJ_BW, OBJ_BH, OBJ_BCOL[i], fo * other, OBJ_BLAB[i], 32);
+  }
+  // 抽屜（藏在積木後面往下拉開）
+  const d = objk(u, 2.4, 1.0);
+  if (d > 0.002) {
+    const dh = 20 + 300 * d;
+    g += `<rect x="260" y="292" width="1080" height="${objf(dh)}" rx="16" fill="${OBJ_CREAM}" stroke="${OBJ_BLUE}" stroke-width="8"/>`;
+  }
+  g += objBlock(lerp(460, 200, mv), lerp(OBJ_BY, 190, mv), lerp(320, 1200, mv), lerp(150, 90, mv), OBJ_BLUE, fo, '前面和左邊', lerp(32, 40, mv));
+  // 三句逐句出現；每句左邊一個 a／b 標記
+  const T = [3.6, 5.1, 6.6];
+  OBJ_P2.forEach((s, i) => {
+    const k = objk(u, T[i], 0.7), y = OBJ8_ROW[i];
+    g += objSent(370, y, s, 36, k, OBJ_INK);
+    const mk = objk(u, T[i] + 0.5, 0.4);
+    if (mk > 0.002) g += `<g opacity="${objO(mk)}"><circle cx="318" cy="${y - 12}" r="24" fill="${OBJ8_KIND[i] === 'a' ? OBJ_BLUE : OBJ_ORANGE}" stroke="rgba(26,43,35,.5)" stroke-width="3"/>${txt(318, y - 2, OBJ8_KIND[i], { a: 'middle', s: 28, w: 1, f: OBJ_INK })}</g>`;
+  });
+  // 第③句劃紅線，標明是 b
+  g += objLine(370, 592, 370 + 12 * 36, 592, ease(P(u, 7.6, 8.2)), C.red, 7, 1);
+  // 串線與三顆（藍珠、藍珠、橘蝴蝶結）
+  g += objLine(300, 720, 860, 720, P(u, 8.0, 8.5), C.chalk, 5, 0.9);
+  const F0 = [8.4, 9.1, 9.8];
+  for (let i = 0; i < 3; i++) {
+    if (u < F0[i]) continue;
+    const kp = objOut(P(u, F0[i], F0[i] + 0.3)), kf = P(u, F0[i] + 0.3, F0[i] + 1.3);
+    const y = OBJ8_ROW[i] - 12, tx = OBJ8_BX[i];
+    const [x, yy] = objAlongPts([[318, y], [200, y], [200, 645], [tx, 645], [tx, 720]], kf);
+    g += objPiece(OBJ8_KIND[i], x, yy, 0.95 * kp, 1);
+  }
+  ['黑板講桌', '窗戶陽光', '感覺'].forEach((s, i) => {
+    g += txt(OBJ8_BX[i], 800, s, { a: 'middle', s: 28, f: i === 2 ? OBJ_ORANGE : C.chalk, o: objk(u, F0[i] + 1.3, 0.5) });
+  });
+  // 字卡
+  const co = objk(u, 11.5, 0.7);
+  if (co > 0.002) g += `<g opacity="${objO(co)}">${box(900, 650, 600, 140, C.yellow, 1, C.deep)}${txt(1200, 708, '骨架照方位排，', { a: 'middle', s: 38, w: 1, f: C.yellow })}${txt(1200, 760, '每段一樣先寫 a、再寫 b', { a: 'middle', s: 38, w: 1 })}</g>`;
+  g += txt(1520, 826, '示範短文為自編', { a: 'end', c: 't-body', s: 24, f: C.dim, o: objk(u, 0.8, 0.8) });
+  return g;
+}
+// 沿折線移動：k 為 0–1（含緩動）
+function objAlongPts(pts, k) {
+  const tot = objPolyLen(pts), [x, y] = objPoly(pts, ease(k) * tot);
+  return [x, y];
+}
+
+// ---------- s9 換你試試 ----------
+function obj9(u) {
+  let g = head(u, '練習', '換你試試');
+  g += txt(120, 222, '〈我家的客廳〉', { s: 46, w: 1, f: C.yellow, o: objk(u, 0.2, 0.6) });
+  // 客廳俯視簡圖：上＝前（電視）、左＝沙發、下＝後（櫃子）、右＝桌子；門在右下角
+  const w = (d, k) => objPath(d, k, C.chalk, 6);
+  g += w('M600 570 L620 570 L620 300 L170 300 L170 570 L520 570', P(u, 0.3, 1.5));
+  g += `<g opacity="${objO(objk(u, 1.4, 0.5))}"><line x1="520" y1="570" x2="520" y2="510" stroke="${C.dim}" stroke-width="4" stroke-linecap="round"/></g>`;
+  const item = (op, body) => `<g opacity="${objO(op)}" stroke="${C.chalk}" stroke-width="4" fill="rgba(239,233,216,.08)">${body}</g>`;
+  g += item(objk(u, 1.6, 0.5), '<rect x="300" y="308" width="160" height="20" rx="4"/>');
+  g += item(objk(u, 2.0, 0.5), '<rect x="178" y="380" width="48" height="130" rx="8"/><rect x="178" y="380" width="48" height="22" rx="6"/><rect x="178" y="488" width="48" height="22" rx="6"/>');
+  g += item(objk(u, 2.4, 0.5), '<rect x="250" y="532" width="180" height="30" rx="4"/><line x1="310" y1="532" x2="310" y2="562"/><line x1="370" y1="532" x2="370" y2="562"/>');
+  g += item(objk(u, 2.8, 0.5), '<rect x="522" y="380" width="70" height="90" rx="14"/>');
+  [['電視', 380, 288, 'middle', 1.8], ['沙發', 158, 450, 'end', 2.2], ['櫃子', 340, 606, 'middle', 2.6], ['桌子', 634, 432, 'start', 3.0]].forEach(([s, x, y, a, t]) => {
+    g += txt(x, y, s, { a, s: 26, w: 1, o: objk(u, t, 0.5) });
+  });
+  g += txt(560, 606, '門', { a: 'middle', s: 24, f: C.dim, o: objk(u, 3.0, 0.5) });
+  g += objMan(560, 535, -90, objk(u, 3.2, 0.6), 0.9);
+  // 右邊四塊空白積木：由右滑進來
+  const LB = ['客廳的整體', '＿＿和＿＿', '＿＿和＿＿', '我對客廳的感覺'];
+  for (let i = 0; i < 4; i++) {
+    const t0 = 4.0 + i * 0.9, k = objk(u, t0, 0.7);
+    g += objBlock(900 + (1 - k) * 260, 220 + i * 120, 560, 92, OBJ_BCOL[i], k, LB[i], 32);
+  }
+  // 順序卡
+  const ok = objk(u, 8.0, 0.7);
+  g += `<g opacity="${objO(ok)}">${box(120, 636, 560, 74, C.yellow, 1, C.deep)}${txt(400, 686, '站在門口：前→左→後→右', { a: 'middle', s: 34, w: 1, f: C.yellow })}</g>`;
+  // 下方三句重點
+  [['蒐集外觀、構造、功用', C.blue], ['站著看，照順序寫', C.green], ['先總說，再分說', C.yellow]].forEach(([s, col], i) => {
+    const o = objk(u, 9.0 + i * 0.9, 0.6), x = 100 + i * 490;
+    g += `<g opacity="${objO(o)}">${box(x, 744, 440, 76, col, 1, C.deep)}${dot(x + 28, 782, 11, col)}${txt(x + 52, 794, s, { s: 32, w: 1 })}</g>`;
+  });
+  return g;
+}
+
+// ===== 場景包裝：範本的 .t-chalk／.t-body 以 CSS fill 蓋掉 SVG fill 屬性，這裡把 fill 同步寫進 style，讓 txt() 的 f 顏色生效 =====
+const objpaint = (svg) => svg.replace(/<text ([^>]*?)fill="([^"]+)"/g, '<text $1style="fill:$2" fill="$2"');
+function s1(u) { return objpaint(obj1(u)); }
+function s2(u) { return objpaint(obj2(u)); }
+function s3(u) { return objpaint(obj3(u)); }
+function s4(u) { return objpaint(obj4(u)); }
+function s5(u) { return objpaint(obj5(u)); }
+function s6(u) { return objpaint(obj6(u)); }
+function s7(u) { return objpaint(obj7(u)); }
+function s8(u) { return objpaint(obj8(u)); }
+function s9(u) { return objpaint(obj9(u)); }
