@@ -7,6 +7,7 @@
 | 集 | 年級／單元 | 主題 | 長度 | 開啟 |
 |---|---|---|---|---|
 | 1 | 三上・記敘文（寫人） | 寫人的文章怎麼搭骨架？（A 真人真事／B 思想感情、蒐集材料、並列、鳳頭豬肚豹尾、一段只放一件事） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g3-01-person-skeleton/) |
+| 2 | 三上・記敘文（寫人） | 一段裡面怎麼排？（一句一層、先寫 a 再寫 b、重點藏在 b、破題法、希望法與感想（感謝）法、替骨架長肉的細目練習） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g3-02-person-layers/) |
 
 ## 怎麼使用
 
@@ -23,7 +24,7 @@
 | `index.html` | 動畫本體（單一檔案） |
 | `brief.md` | 教學目標、事實表（每句字幕的出處）、分鏡 |
 | `timing.json` | 分段、秒數與字幕 |
-| `eps-scenes.js` | 場景程式（已組裝進 index.html，留存供修改） |
+| `*-scenes.js` | 場景程式（已組裝進 index.html，留存供修改） |
 
 ## 出處與說明
 
