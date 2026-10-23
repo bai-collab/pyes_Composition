@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="zh-Hant">
+<script>if(/[?&]embed=1\b/.test(location.search))document.documentElement.classList.add('embed')</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寫一件事怎麼變</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap">
+<style>
+/* repo 轉教學動畫網頁｜通用骨架（黑板舞台）。新動畫只改「設定區」與「場景區」。 */
+:root{
+  --board:#23392f; --board-deep:#1a2b23; --frame:#6e4c31;
+  --chalk:#efe9d8; --chalk-dim:#a9b3a6;
+  --yellow:#f2c14e; --orange:#e8875b; --blue:#7fb6d9; --green:#8fd18a; --red:#e66a5c;
+  --font-chalk:"LXGW WenKai TC","Kaiti TC","DFKai-SB","BiauKai",serif;
+  --font-body:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--board-deep);color:var(--chalk)}
+body{margin:0;font-family:var(--font-body)}
+/* ===== 播放器版面公版（研習平台頁同一套規則）=====
+   1) 播放區 .player（標題列＋舞台＋字幕＋控制列）剛好佔一個視窗高；章節、延伸閱讀、出處在下方，往下捲才看到。
+   2) 舞台吃「扣掉標題列、字幕、控制列後的剩餘空間」：.stage-area 是容器查詢容器，.board 用 cqw／cqh 算出 16:9 最大尺寸並置中；
+      木框寬度只用 --bw 變數計入（SVG 本身維持 16:9），不得再用固定像素去扣高度。
+   3) 進度條列可收合（#toggleSeek），預設收起；收起時舞台自動變大。字幕至少預留兩行，段落切換時舞台不跳動。    4) 標註工具（手寫筆跡＋文字，.annoLayer 掛在 .board 內）：「標註工具 ▸／▾」（#toggleInk）收合一列工具列，預設收起；標註以段落為單位、只存在記憶體；?embed=1 不啟用。 */
+.wrap{max-width:1600px;margin:0 auto;padding-inline:16px;padding-bottom:28px;display:flex;flex-direction:column;gap:14px}
+.player{box-sizing:border-box;height:100vh;height:100dvh;padding-block:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.player>header,.player>.controls{flex:none}
+.theater{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:10px;align-items:center}
+.theater .caption{align-self:stretch;flex:none}
+.stage-area{flex:1 1 0;min-height:0;align-self:stretch;display:flex;align-items:center;justify-content:center;container-type:size}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 16px}
+h1{font-family:var(--font-chalk);font-weight:700;font-size:clamp(1.3rem,2.6vw,1.9rem);margin:0}
+.sub{color:var(--chalk-dim);font-size:.95rem;margin:0}
+.board{--bw:14px;box-sizing:border-box;border:var(--bw) solid var(--frame);border-radius:6px;background:var(--board);box-shadow:inset 0 0 60px rgba(0,0,0,.45);flex:none;max-width:100%;
+  width:100%;width:min(100cqw, calc((100cqh - 2 * var(--bw)) * 16 / 9 + 2 * var(--bw)))}
+/* 全螢幕：theater 本身就是全螢幕元素，沿用同一套規則（舞台吃剩餘空間、字幕預留兩行；字幕字級與行高用 vh／vw） */
+.theater:fullscreen{background:var(--board-deep);gap:1.5vh;padding:2vh 2vw;box-sizing:border-box}
+.theater:fullscreen .caption{text-align:center;font-size:min(2.4vw,3.2vh);line-height:1.4;min-height:2.8em;max-width:100%}
+@media (max-width:640px){.board{--bw:8px}}
+/* 內嵌（?embed=1）：只留舞台與字幕，尺寸全用 vh，播放由外層 postMessage 控制（版面公版不套用） */
+html.embed body{padding:0;overflow:hidden}
+html.embed header,html.embed .controls,html.embed .chapters,html.embed .works,html.embed .note{display:none}
+html.embed .wrap{max-width:none;gap:0;padding:0}
+html.embed .player,html.embed .stage-area{display:contents}
+html.embed .stage-area{container-type:normal}
+html.embed .theater{flex:none;gap:1vh}
+html.embed .board{width:min(100%, calc(89vh * 16 / 9));border-width:1.4vh}
+html.embed .caption{font-size:2.6vh;line-height:1.4;min-height:3.8vh;text-align:center;padding:0 1vh;margin:0}
+.board svg{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.caption{font-family:var(--font-chalk);font-size:clamp(1.05rem,2.2vw,1.45rem);line-height:1.5;min-height:3em;margin:0}
+.caption b{color:var(--yellow);font-weight:700}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+#fs{margin-left:auto}
+button{font:inherit;font-size:.95rem;color:var(--chalk);background:transparent;border:1.5px solid var(--chalk-dim);border-radius:999px;padding:.4em 1em;cursor:pointer}
+button:hover{border-color:var(--yellow);color:var(--yellow)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#play{min-width:5.5em;border-color:var(--yellow);color:var(--yellow)}
+#toggleSeek[aria-expanded="true"]{border-color:var(--yellow);color:var(--yellow)}
+/* 進度條列：獨佔 .controls 的第二列；黃色 6px 粗軌道畫在 #seekMarks（細線＝段落分界），上面疊透明的 range 與 16px 圓拇指 */
+.seekrow{display:flex;flex:1 0 100%;align-items:center;gap:12px}
+.seekrow[hidden]{display:none}
+#seekWrap{position:relative;flex:1 1 200px;min-width:120px;height:20px}
+#scrub{position:relative;z-index:1;-webkit-appearance:none;appearance:none;display:block;width:100%;height:20px;padding:0;margin:0;border:0;border-radius:0;background:transparent;cursor:pointer}
+#scrub::-webkit-slider-runnable-track{height:6px;background:transparent}
+#scrub::-moz-range-track{height:6px;border:0;background:transparent}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;margin-top:-5px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#scrub::-moz-range-thumb{box-sizing:border-box;width:16px;height:16px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#seekMarks{position:absolute;left:8px;right:8px;top:7px;height:6px;border-radius:3px;overflow:hidden;background:var(--yellow);pointer-events:none}
+#seekMarks i{position:absolute;top:0;bottom:0;width:1px;background:var(--board-deep)}
+#time{flex:none;width:8.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--chalk-dim);font-size:.85rem}
+/* 標註工具（手寫筆跡＋文字）：標註層蓋在舞台上，平常 pointer-events:none，只有畫筆／文字啟用時才攔截；?embed=1 不建立 */
+.board{position:relative}
+.annoLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2;--u:1px}
+.annoLayer canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;background:none;border-radius:0;aspect-ratio:auto;box-shadow:none}
+.annoLayer canvas.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.annoLayer canvas.on.text-mode{cursor:text}
+.annoLabels{position:absolute;inset:0;pointer-events:none}
+.annoLabel{position:absolute;transform:translateY(-50%);font-family:var(--font-chalk,serif);font-size:calc(34 * var(--u));font-weight:700;line-height:1.25;padding:calc(4 * var(--u)) calc(14 * var(--u));background:rgba(26,43,35,.82);border:calc(2 * var(--u)) solid;border-radius:calc(10 * var(--u));white-space:pre-wrap;max-width:56%;word-break:break-word}
+.annoInput{position:absolute;transform:translateY(-50%);box-sizing:border-box;width:max(180px,32%);max-width:92%;font-family:var(--font-chalk,serif);font-size:max(16px,calc(30 * var(--u)));font-weight:700;pointer-events:auto;background:rgba(26,43,35,.95);border:2px dashed var(--yellow,#f2c14e);color:var(--chalk,#efe9d8)}
+.annoInput[hidden]{display:none}
+#toggleInk[aria-expanded="true"]{border-color:var(--yellow,#f2c14e);color:var(--yellow,#f2c14e)}
+/* 工具列：獨佔 .controls 的一整列 */
+.annoRow{display:flex;flex:1 0 100%;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.annoRow[hidden]{display:none}
+.annoSwatches{display:inline-flex;align-items:center;gap:8px}
+.annoSwatch{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid transparent}
+.annoSwatch[aria-pressed="true"]{border-color:#fff;outline:2px solid var(--board-deep,var(--bg,#1a2b23))}
+.annoRow button[aria-pressed="true"]:not(.annoSwatch){border-color:var(--yellow,#f2c14e);color:var(--board-deep,#1a2b23);background:var(--yellow,#f2c14e)}
+.chapters{display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0;list-style:none}
+.chapters button{font-size:.85rem;padding:.25em .8em;border-color:rgba(239,233,216,.25);color:var(--chalk-dim)}
+.chapters button[aria-current="true"]{border-color:var(--yellow);color:var(--yellow)}
+.note{color:var(--chalk-dim);font-size:.85rem;margin:0}
+.works h2{font-family:var(--font-chalk);font-size:1.15rem;margin:0 0 6px;color:var(--yellow)}
+.works ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 16px}
+.works a{color:var(--chalk);text-underline-offset:3px}
+.works span{display:block;color:var(--chalk-dim);font-size:.85rem}
+.t-chalk{font-family:var(--font-chalk);fill:var(--chalk)}
+.t-body{font-family:var(--font-body);fill:var(--chalk)}
+</style>
+
+<div class="wrap">
+  <section class="player" aria-label="動畫播放器">
+    <header>
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </header>
+    <div class="theater" id="theater">
+      <div class="stage-area"><div class="board"><svg id="stage" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" role="img"></svg></div></div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+    </div>
+    <div class="controls">
+      <button id="prev" type="button">上一段</button>
+      <button id="play" type="button">播放</button>
+      <button id="next" type="button">下一段</button>
+      <button id="toggleSeek" type="button" aria-expanded="false" aria-controls="seekrow">進度條 ▸</button>
+      <button id="fs" type="button">全螢幕</button>
+      <div class="seekrow" id="seekrow" hidden>
+        <div id="seekWrap">
+          <input id="scrub" type="range" min="0" max="1" step="0.05" value="0" aria-label="時間軸">
+          <div id="seekMarks" aria-hidden="true"></div>
+        </div>
+        <span id="time"></span>
+      </div>
+    </div>
+  </section>
+  <ul class="chapters" id="chapters"></ul>
+  <section class="works" aria-labelledby="works-h"><h2 id="works-h">延伸閱讀</h2><ul id="works"></ul></section>
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+'use strict';
+// ===================== 設定區（段落與字幕由 timing.json 注入）=====================
+// ===== 教學動畫共用圖形（不得與範本播放器或工具重名）=====
+const C = { yellow: 'var(--yellow)', blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', orange: 'var(--orange)', purple: '#b9a3e3', chalk: 'var(--chalk)', dim: 'var(--chalk-dim)', deep: 'var(--board-deep)' };
+function arrow(x1, y1, x2, y2, color = C.dim, op = 1, both = false, k = 1, dash = '') {
+  const ex = lerp(x1, x2, k), ey = lerp(y1, y2, k);
+  const ang = Math.atan2(y2 - y1, x2 - x1), h = 16;
+  const head = (x, y, a) => `<polygon points="${x},${y} ${x - h * Math.cos(a - 0.45)},${y - h * Math.sin(a - 0.45)} ${x - h * Math.cos(a + 0.45)},${y - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  let g = `<g opacity="${op}"><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${color}" stroke-width="4" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  if (k >= 0.99) { g += head(x2, y2, ang); if (both) g += head(x1, y1, ang + Math.PI); }
+  return g + '</g>';
+}
+// 曲線箭頭：二次貝茲，k 為繪製進度（以 dasharray 截斷）
+function curve(x1, y1, cx, cy, x2, y2, color = C.dim, op = 1, k = 1, label = '', lx = 0, ly = 0) {
+  const len = 1400;
+  let g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="10 9" pathLength="${len}" style="stroke-dashoffset:0"/>`;
+  if (k < 0.99) g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" pathLength="${len}" stroke-dasharray="${(len * k).toFixed(1)} ${len}"/>`;
+  else {
+    const a = Math.atan2(y2 - cy, x2 - cx), h = 16;
+    g += `<polygon points="${x2},${y2} ${x2 - h * Math.cos(a - 0.45)},${y2 - h * Math.sin(a - 0.45)} ${x2 - h * Math.cos(a + 0.45)},${y2 - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  }
+  if (label) g += txt(lx, ly, label, { c: 't-body', s: 24, f: color, o: k >= 0.99 ? 1 : 0 });
+  return g + '</g>';
+}
+function hframe(x, y, w, h, op, label = '', color = C.yellow, glow = 0, size = 32) {
+  return `<g opacity="${op}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="rgba(242,193,78,${0.04 + 0.08 * glow})" stroke="${color}" stroke-width="${4 + 2 * glow}" stroke-dasharray="16 12"/>` +
+    (label ? txt(x + 26, y + 44, label, { s: size, w: 1, f: color }) : '') + '</g>';
+}
+function card(x, y, W, h, op, lines, color = C.chalk) {
+  // lines: [[文字, 字級, 顏色, 粗體, 字型類別, 置中]]，依序往下排
+  let g = `<g opacity="${op}">${box(x, y, W, h, color, 1, C.deep)}`;
+  let yy = y + 14;
+  for (const [s, size = 28, f = C.chalk, bold = false, c = 't-chalk', cx = false] of lines) {
+    yy += size * 1.25;
+    g += txt(cx ? x + W / 2 : x + 24, yy, s, { s: size, f, w: bold, c, a: cx ? 'middle' : 'start' });
+    yy += size * 0.3;
+  }
+  return g + '</g>';
+}
+function ccard(x, y, w, h, op, title, sub, color = C.chalk, tsize = 32, ssize = 24) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}` +
+    txt(x + w / 2, y + h / 2 + (sub ? -6 : tsize * 0.35), title, { a: 'middle', s: tsize, w: 1, f: color }) +
+    (sub ? txt(x + w / 2, y + h / 2 + ssize + 8, sub, { a: 'middle', c: 't-body', s: ssize, f: C.dim }) : '') + '</g>';
+}
+function chip(x, y, w, label, op, color = C.chalk, size = 26, h = 58) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}${txt(x + w / 2, y + h / 2 + size * 0.36, label, { a: 'middle', s: size, f: color })}</g>`;
+}
+function tick(x, y, s, op, color = C.green) {
+  return `<path d="M${x - s} ${y} L${x - s / 3} ${y + s * 0.7} L${x + s} ${y - s * 0.8}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"/>`;
+}
+function cross(x, y, s, op, color = C.red) {
+  return `<g opacity="${op}" stroke="${color}" stroke-width="12" stroke-linecap="round"><line x1="${x - s}" y1="${y - s}" x2="${x + s}" y2="${y + s}"/><line x1="${x + s}" y1="${y - s}" x2="${x - s}" y2="${y + s}"/></g>`;
+}
+function dot(x, y, r, color, op = 1) { return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${op}"/>`; }
+function underline(x1, x2, y, k, color = C.yellow, op = 1) { return `<line x1="${x1}" y1="${y}" x2="${lerp(x1, x2, k)}" y2="${y}" stroke="${color}" stroke-width="4" opacity="${op}"/>`; }
+// 依進度逐一出現：第 i 個元素在 t0 + i*step 開始、花 dur 秒
+const stagger = (u, t0, i, step = 0.6, dur = 0.7) => ease(P(u, t0 + i * step, t0 + i * step + dur));
+
+const META = {
+  title: '寫一件事怎麼變',
+  subtitle: '9 段・約 2 分鐘・三年級說明文（事物）第三集',
+  ariaLabel: '說明文記錄歷程，由開始到結束，時間式與事件式，四段骨架。',
+  note: '出處：楊裕貿作文寫作要領、研習講義、寫作課程設計。解說牌、杯子裡的綠豆、長箭頭、月曆、步驟卡、積木、工作牌、放大鏡是視覺比喻或示意；綠豆天數是示範，不是實驗數據；示範句、短語與吹畫步驟自編。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換段落，F 鍵全螢幕。畫面只由時間決定。',
+  works: [],
+};
+
+const EXP_WOOD = '#a9784f';
+const EXP_RED = '#d9605a';
+const EXP_GREEN = '#8fd18a';
+const EXP_BLUE = '#7fb6d9';
+const EXP_ORANGE = '#e8875b';
+const EXP_YELLOW = '#f2c14e';
+const expK = (u, a, b) => ease(P(u, a, b));
+const expO = (value) => Math.max(0, Math.min(1, Number(value) || 0)).toFixed(3);
+const expN = (value) => Number(value).toFixed(1);
+
+function expTag(op = 1) {
+  return `<g opacity="${expO(op)}">${box(1375, 56, 165, 60, C.orange, 1, C.deep)}${txt(1457, 98, '比喻', { a: 'middle', s: 30, w: 1, f: C.orange })}</g>`;
+}
+
+function expLabel(cx, y, value, size = 30, color = C.chalk, op = 1) {
+  if (op <= 0.001) return '';
+  return txt(cx, y, value, { a: 'middle', s: size, w: 1, f: color, o: op });
+}
+
+function expTextByChar(value, cx, y, size, color = C.chalk, op = 1) {
+  const chars = Array.from(value);
+  return chars.map((ch, i) => txt(cx + (i - (chars.length - 1) / 2) * size, y, ch, {
+    a: 'middle', s: size, w: 1, f: color, o: op,
+  })).join('');
+}
+
+function expType(value, u, cx, y, size, color, start, end, op = 1) {
+  if (u <= start || op <= 0.001) return '';
+  const chars = Array.from(value);
+  const count = Math.min(chars.length, Math.ceil(expK(u, start, end) * chars.length));
+  return chars.slice(0, count).map((ch, i) => txt(cx + (i - (chars.length - 1) / 2) * size, y, ch, {
+    a: 'middle', s: size, w: 1, f: color, o: op,
+  })).join('');
+}
+
+function expLine(x1, y1, x2, y2, color = C.chalk, width = 5, op = 1, dash = '') {
+  if (op <= 0.001) return '';
+  return `<path d="M${expN(x1)} ${expN(y1)} L${expN(x2)} ${expN(y2)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${expO(op)}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+}
+
+function expPath(d, color = C.chalk, width = 5, op = 1, fill = 'none', dash = '') {
+  if (op <= 0.001) return '';
+  return `<path d="${d}" fill="${fill}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${expO(op)}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+}
+
+function expCircle(cx, cy, r, stroke = C.chalk, width = 5, fill = 'none', op = 1, dash = '') {
+  if (op <= 0.001 || r <= 0) return '';
+  return `<circle cx="${expN(cx)}" cy="${expN(cy)}" r="${expN(r)}" fill="${fill}" stroke="${stroke}" stroke-width="${width}" opacity="${expO(op)}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+}
+
+function expBlock(x, y, w, h, color, op = 1, dashed = false) {
+  if (op <= 0.001 || w <= 2 || h <= 2) return '';
+  if (dashed) return `<g opacity="${expO(op)}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="14" fill="rgba(239,233,216,.012)" stroke="${color}" stroke-width="5" stroke-dasharray="14 10"/></g>`;
+  let g = `<g opacity="${expO(op)}">`;
+  const count = Math.max(2, Math.floor(w / 130));
+  for (let i = 0; i < count; i++) {
+    const cx = x + w * (i + 0.5) / count;
+    g += `<rect x="${expN(cx - 20)}" y="${expN(y - 11)}" width="40" height="13" rx="6" fill="${color}"/>`;
+  }
+  return g + `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="14" fill="${color}" fill-opacity=".22" stroke="${C.chalk}" stroke-width="4"/></g>`;
+}
+
+function expCardFrame(x, y, w, h, op = 1, dashed = false, stroke = C.chalk) {
+  if (op <= 0.001) return '';
+  if (dashed) return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="rgba(239,233,216,.012)" stroke="${stroke}" stroke-width="4" stroke-dasharray="13 9" opacity="${expO(op)}"/>`;
+  return `<g opacity="${expO(op)}">${box(x, y, w, h, stroke, 1, 'rgba(239,233,216,.015)')}</g>`;
+}
+
+function expStar(cx, cy, r, op = 1) {
+  if (op <= 0.01 || r <= 1) return '';
+  const points = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = -Math.PI / 2 + i * Math.PI / 5;
+    const radius = i % 2 ? r * 0.46 : r;
+    points.push(`${expN(cx + Math.cos(angle) * radius)},${expN(cy + Math.sin(angle) * radius)}`);
+  }
+  return `<polygon points="${points.join(' ')}" fill="rgba(242,193,78,.3)" stroke="${C.yellow}" stroke-width="5" stroke-linejoin="round" opacity="${expO(op)}"/>`;
+}
+
+function expCheck(cx, cy, scale = 1, op = 1) {
+  if (op <= 0.01) return '';
+  return `<path d="M${cx - 30 * scale} ${cy} L${cx - 8 * scale} ${cy + 23 * scale} L${cx + 37 * scale} ${cy - 30 * scale}" fill="none" stroke="${EXP_GREEN}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity="${expO(op)}"/>`;
+}
+
+function expCross(cx, cy, size = 24, op = 1) {
+  if (op <= 0.01) return '';
+  return `<g opacity="${expO(op)}" stroke="${EXP_RED}" stroke-width="10" stroke-linecap="round"><line x1="${cx - size}" y1="${cy - size}" x2="${cx + size}" y2="${cy + size}"/><line x1="${cx + size}" y1="${cy - size}" x2="${cx - size}" y2="${cy + size}"/></g>`;
+}
+
+function expLens(cx, cy, r = 48, op = 1, dashed = false, handleUp = false) {
+  if (op <= 0.01 || r <= 1) return '';
+  const dash = dashed ? '11 9' : '';
+  const sy = handleUp ? -1 : 1;
+  return `<g opacity="${expO(op)}"><circle cx="${expN(cx)}" cy="${expN(cy)}" r="${expN(r)}" fill="rgba(242,193,78,.045)" stroke="${C.yellow}" stroke-width="8"${dash ? ` stroke-dasharray="${dash}"` : ''}/>` +
+    `<path d="M${expN(cx + r * 0.68)} ${expN(cy + sy * r * 0.68)} L${expN(cx + r * 1.28)} ${expN(cy + sy * r * 1.28)}" stroke="${C.yellow}" stroke-width="17" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>` +
+    `<path d="M${expN(cx + r * 0.8)} ${expN(cy + sy * r * 0.8)} L${expN(cx + r * 1.26)} ${expN(cy + sy * r * 1.26)}" stroke="${C.chalk}" stroke-width="4" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/></g>`;
+}
+
+function expFlash(u, start) {
+  const fadeIn = expK(u, start, start + 0.08);
+  const fadeOut = 1 - expK(u, start + 0.42, start + 0.5);
+  return Math.max(0, Math.min(fadeIn, fadeOut));
+}
+
+function expBracket(x1, x2, y, progress, color = C.yellow) {
+  if (progress <= 0.001) return '';
+  const end = lerp(x1, x2, progress);
+  return expPath(`M${x1} ${y - 8} V${y} H${end} V${y - 8}`, color, 4, 1);
+}
+
+function expPaint(svg) {
+  return svg.replace(/font-size="24"/g, 'font-size="26"')
+    .replace(/<text ([^>]*?)fill="([^"]+)"/g, '<text $1style="fill:$2" fill="$2"');
+}
+
+function expPhrase(x, y, value, size = 30, color = C.chalk, op = 1, anchor = 'start') {
+  return txt(x, y, value, { a: anchor, s: size, w: 1, f: color, o: op });
+}
+
+function expWorkTag(x, y, w, value, op = 1) {
+  return expLabel(x + w / 2, y, value, 34, C.chalk, op);
+}
+
+function expOrderCard(x, y, w, h, value, op = 1, dashed = false) {
+  return expCardFrame(x, y, w, h, op, dashed, C.yellow) + expLabel(x + w / 2, y + h / 2 + 11, value, 30, C.yellow, op);
+}
+
+function expQuestionArrow(cx, cy, scale = 1, op = 1) {
+  return `<g transform="translate(${expN(cx)} ${expN(cy)}) scale(${expN(scale)})" opacity="${expO(op)}" fill="none" stroke="${C.chalk}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="M-64 -14 Q-64 -42 -40 -42 Q-16 -42 -16 -20 Q-16 -5 -39 5 Q-48 9 -48 22"/><circle cx="-48" cy="39" r="3" fill="${C.chalk}"/>` +
+    `<path d="M-2 0 H40 M28 -12 L42 0 L28 12" stroke="${C.yellow}" stroke-width="6"/>` +
+    `<path d="M65 -38 V12" stroke="${C.chalk}" stroke-width="8"/><circle cx="65" cy="37" r="4" fill="${C.chalk}" stroke="none"/></g>`;
+}
+
+function expSign(cx, cy, w, h, op = 1) {
+  const postEnd = h * 0.85;
+  const iconY = -h / 3 + (h < 240 ? h * 0.1 : 0);
+  return `<g transform="translate(${expN(cx)} ${expN(cy)})" opacity="${expO(op)}" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="M${expN(-w * 0.34)} ${expN(h * 0.44)} V${expN(postEnd)} M${expN(w * 0.34)} ${expN(h * 0.44)} V${expN(postEnd)}" fill="none" stroke="${EXP_WOOD}" stroke-width="10"/>` +
+    `<rect x="${expN(-w / 2)}" y="${expN(-h / 2)}" width="${w}" height="${h}" rx="7" fill="#315342" stroke="${EXP_WOOD}" stroke-width="6"/>` +
+    expQuestionArrow(0, iconY, Math.min(1, h / 200), 1) + '</g>';
+}
+
+function expCup(cx, cy, stage, scale = 1, op = 1) {
+  const s = Math.max(0, Math.min(4, stage));
+  const grow = expK(s, 0, 1);
+  const root = expK(s, 1, 2);
+  const fineRoots = expK(s, 2, 3);
+  const stem = expK(s, 2, 3);
+  const leaves = expK(s, 3, 4);
+  let g = `<g transform="translate(${expN(cx)} ${expN(cy)}) scale(${expN(scale)})" opacity="${expO(op)}" stroke-linecap="round" stroke-linejoin="round">`;
+  g += `<path d="M-70 -65 L-55 65 H55 L70 -65" fill="rgba(239,233,216,.015)" stroke="${C.chalk}" stroke-width="5"/>`;
+  g += `<ellipse cx="0" cy="-65" rx="70" ry="10" fill="none" stroke="${C.chalk}" stroke-width="5"/>`;
+  g += `<path d="M-64 -18 Q-48 -29 -31 -18 T2 -18 T35 -18 T62 -18 L58 5 Q35 11 10 4 T-40 5 L-60 2 Z" fill="rgba(239,233,216,.25)" stroke="${C.chalk}" stroke-width="3"/>`;
+  const rx = 12 + 6 * grow;
+  const ry = 9 + 4 * grow;
+  g += `<ellipse cx="0" cy="-30" rx="${rx}" ry="${ry}" fill="#8fbf6a" stroke="${C.chalk}" stroke-width="3"/>`;
+  if (root > 0.01) {
+    const endY = lerp(-17, 23, root);
+    const dash = (42 * root).toFixed(1);
+    g += `<path d="M0 -17 Q-8 -3 2 5 Q9 13 2 ${endY}" fill="none" stroke="#f3efe2" stroke-width="4" stroke-dasharray="${dash} 42"/>`;
+    g += `<path d="M-4 -34 Q0 -29 4 -25" fill="none" stroke="#f3efe2" stroke-width="2.5" opacity="${root}"/>`;
+  }
+  if (fineRoots > 0.01) {
+    const rootTip = lerp(-1, 17, fineRoots);
+    for (let idx = 0; idx < 3; idx++) {
+      const side = idx === 1 ? 1 : -1;
+      const fromY = -1 + idx * 8;
+      const len = 12 * fineRoots;
+      const toX = (idx - 1) * 9;
+      g += `<path d="M${toX * .3} ${fromY} Q${toX * .6 + side * 3} ${fromY + len * .45} ${toX + side * len * .55} ${rootTip + len * .35}" fill="none" stroke="#f3efe2" stroke-width="2" opacity="${fineRoots}"/>`;
+    }
+  }
+  if (stem > 0.01) {
+    const topY = lerp(-40, -90, stem);
+    const dash = (50 * stem).toFixed(1);
+    g += `<path d="M0 -40 Q5 -62 0 ${topY}" fill="none" stroke="#9fd27a" stroke-width="5" stroke-dasharray="${dash} 50"/>`;
+  }
+  if (leaves > 0.01) {
+    const leafRx = 16 * leaves;
+    const leafRy = 9 * leaves;
+    g += `<ellipse cx="-12" cy="-87" rx="${leafRx}" ry="${leafRy}" transform="rotate(-30 -12 -87)" fill="#9fd27a" stroke="${C.chalk}" stroke-width="2.5" opacity="${leaves}"/>`;
+    g += `<ellipse cx="12" cy="-87" rx="${leafRx}" ry="${leafRy}" transform="rotate(30 12 -87)" fill="#9fd27a" stroke="${C.chalk}" stroke-width="2.5" opacity="${leaves}"/>`;
+  }
+  return g + '</g>';
+}
+
+function expCalendar(cx, cy, label, flip = 0, op = 1) {
+  const f = Math.max(0, Math.min(1, flip));
+  const oldLabel = label === '第3天' ? '第1天' : label === '第7天' ? '第3天' : label;
+  let g = `<g opacity="${expO(op)}">`;
+  g += `<rect x="${cx - 120}" y="${cy - 118}" width="240" height="248" rx="12" fill="rgba(239,233,216,.035)" stroke="${C.chalk}" stroke-width="5"/>`;
+  g += `<path d="M${cx - 120} ${cy - 78} H${cx + 120}" fill="none" stroke="${C.chalk}" stroke-width="4"/>`;
+  for (const dx of [-44, 44]) {
+    g += `<path d="M${cx + dx} ${cy - 139} V${cy - 113}" fill="none" stroke="${EXP_WOOD}" stroke-width="9" stroke-linecap="round"/>`;
+    g += `<circle cx="${cx + dx}" cy="${cy - 130}" r="12" fill="${C.deep}" stroke="${C.chalk}" stroke-width="4"/>`;
+  }
+  g += `<text x="${cx}" y="${cy + 29}" text-anchor="middle" font-size="40" font-weight="700" fill="${C.yellow}" opacity="${expO(f)}">${label}</text>`;
+  if (f < 0.999 && oldLabel !== label) {
+    g += `<g transform="translate(${cx} ${cy - 44 * f}) rotate(${-5 * f} ${cx} ${cy})" opacity="${expO(1 - f)}"><rect x="${cx - 116}" y="${cy - 114}" width="232" height="240" rx="9" fill="${C.deep}" stroke="${C.chalk}" stroke-width="4"/><text x="${cx}" y="${cy + 29}" text-anchor="middle" font-size="40" font-weight="700" fill="${C.yellow}">${oldLabel}</text></g>`;
+  } else if (oldLabel === label) {
+    g += `<text x="${cx}" y="${cy + 29}" text-anchor="middle" font-size="40" font-weight="700" fill="${C.yellow}">${label}</text>`;
+  }
+  return g + '</g>';
+}
+
+function expClay(cx, cy, kind, scale = 1, op = 1) {
+  let g = `<g transform="translate(${expN(cx)} ${expN(cy)}) scale(${expN(scale)})" opacity="${expO(op)}" stroke-linecap="round" stroke-linejoin="round">`;
+  if (kind === 0) {
+    g += `<path d="M-43 14 Q-53 -5 -35 -22 Q-18 -38 0 -27 Q16 -42 34 -22 Q52 -3 39 17 Q25 34 4 29 Q-20 38 -37 25 Z" fill="#e9d8cf" stroke="${C.chalk}" stroke-width="4"/>`;
+    g += `<path d="M-25 12 Q-2 1 22 13" fill="none" stroke="rgba(169,120,79,.7)" stroke-width="3"/>`;
+  } else {
+    g += `<path d="M-48 -18 Q-42 14 -30 28 Q0 39 30 28 Q42 14 48 -18 Q22 -2 0 -1 Q-24 -1 -48 -18 Z" fill="#e9d8cf" stroke="${C.chalk}" stroke-width="4"/>`;
+    g += `<path d="M-48 -18 Q0 4 48 -18" fill="none" stroke="${EXP_WOOD}" stroke-width="3"/>`;
+  }
+  return g + '</g>';
+}
+
+function expPaper(cx, cy, kind, k = 0, scale = 1, op = 1) {
+  const p = Math.max(0, Math.min(1, k));
+  const colors = [EXP_RED, EXP_BLUE, EXP_YELLOW];
+  let g = `<g transform="translate(${expN(cx)} ${expN(cy)}) scale(${expN(scale)})" opacity="${expO(op)}" stroke-linecap="round" stroke-linejoin="round">`;
+  g += `<rect x="-100" y="-70" width="200" height="140" rx="5" fill="rgba(239,233,216,.055)" stroke="${C.chalk}" stroke-width="4"/>`;
+  if (kind === 1) {
+    const xs = [-36, 0, 36];
+    for (let i = 0; i < 3; i++) {
+      const yy = lerp(-82, -18 + (i % 2) * 9, p);
+      g += `<circle cx="${xs[i]}" cy="${yy}" r="7" fill="${colors[i]}" stroke="${C.chalk}" stroke-width="1.5" opacity="${expO(0.45 + 0.55 * p)}"/>`;
+    }
+  } else if (kind === 2 || kind === 3) {
+    const paths = [
+      'M0 0 Q-34 -20 -65 -48',
+      'M0 0 Q-7 -42 16 -59',
+      'M0 0 Q34 -20 63 -42',
+    ];
+    for (let i = 0; i < paths.length; i++) {
+      const color = colors[i];
+      if (kind === 2) g += `<path d="${paths[i]}" fill="none" stroke="${color}" stroke-width="7" pathLength="100" stroke-dasharray="${(100 * p).toFixed(1)} 100"/>`;
+      else g += `<path d="${paths[i]}" fill="none" stroke="${color}" stroke-width="7"/>`;
+      if (kind === 2 && p < 0.95) {
+        g += `<circle cx="0" cy="0" r="7" fill="${color}" opacity="${expO(1 - p)}"/>`;
+      }
+    }
+    if (kind === 2) {
+      g += `<path d="M42 -58 L88 -26" fill="none" stroke="${C.chalk}" stroke-width="9"/>`;
+      g += `<path d="M49 -62 L93 -31" fill="none" stroke="${EXP_WOOD}" stroke-width="2"/>`;
+    } else {
+      g += `<circle cx="70" cy="-42" r="18" fill="${C.deep}" stroke="${C.chalk}" stroke-width="4"/>`;
+      g += `<path d="M70 -42 V-53 M70 -42 L79 -36" fill="none" stroke="${C.yellow}" stroke-width="3.5"/>`;
+    }
+  }
+  return g + '</g>';
+}
+
+function expArrow(x1, y1, x2, y2, k, op = 1) {
+  const t = Math.max(0, Math.min(1, k));
+  const x = lerp(x1, x2, t), y = lerp(y1, y2, t);
+  const angle = Math.atan2(y2 - y1, x2 - x1), h = 18;
+  let g = `<g opacity="${expO(op)}"><line x1="${x1}" y1="${y1}" x2="${x}" y2="${y}" stroke="${C.yellow}" stroke-width="6" stroke-linecap="round"/>`;
+  if (t > 0.01) g += `<polygon points="${x},${y} ${x - h * Math.cos(angle - .48)},${y - h * Math.sin(angle - .48)} ${x - h * Math.cos(angle + .48)},${y - h * Math.sin(angle + .48)}" fill="${C.yellow}"/>`;
+  return g + '</g>';
+}
+
+function expCupStageAt(u) {
+  if (u < 3) return expK(u, 2, 3);
+  if (u < 5.6) return 1;
+  if (u < 6.6) return 1 + expK(u, 5.6, 6.6);
+  if (u < 9.6) return 2;
+  return 2 + 2 * expK(u, 9.6, 10.8);
+}
+
+function s1(u) {
+  let g = head(u, '開場', '這次寫怎麼變') + expTag(1);
+  const title = expK(u, 0.2, 0.8);
+  g += `<g opacity="${expO(title)}">${box(640, 200, 320, 72, EXP_YELLOW, 1, C.deep)}${expLabel(800, 248, '〈種子的發芽〉', 40, EXP_YELLOW)}</g>`;
+  g += expSign(400, 470, 220, 180, 0.6 * expK(u, 0.5, 1.5));
+  g += expLabel(400, 700, '是什麼', 34, C.chalk, expK(u, 1.5, 2.5));
+  g += expArrow(560, 470, 1040, 470, expK(u, 2.5, 3.5));
+  const cupOp = expK(u, 3.0, 3.5);
+  const stage = 4 * expK(u, 3.5, 9.0);
+  g += expCup(1200, 520, stage, 1.2, cupOp);
+  g += expLabel(1200, 720, '怎麼變', 34, EXP_YELLOW, expK(u, 3.0, 4.0));
+  return expPaint(g);
+}
+
+function s2(u) {
+  let g = head(u, '寫什麼', '三個歷程題目') + expTag(1);
+  const xs = [120, 600, 1080];
+  const titles = ['種子的發芽', '紙黏土的製作', '吹畫的製作'];
+  const begins = [0.5, 3.0, 5.5];
+  for (let i = 0; i < 3; i++) {
+    const appear = expK(u, begins[i], begins[i] + 0.6);
+    const cardCx = xs[i] + 200;
+    g += expCardFrame(xs[i], 250, 400, 420, appear, false, C.chalk);
+    g += expLabel(cardCx, 305, titles[i], 34, C.chalk, appear);
+    g += expArrow(xs[i] + 170, 470, xs[i] + 230, 470, expK(u, begins[i] + 0.6, begins[i] + 1.0), appear);
+    const after = expK(u, begins[i] + 1.0, begins[i] + 1.8);
+    if (i === 0) {
+      g += expCup(xs[i] + 105, 470, 0, 0.6, appear);
+      g += expCup(xs[i] + 295, 470, 4 * after, 0.6, appear * after);
+    } else if (i === 1) {
+      g += expClay(xs[i] + 105, 470, 0, 0.9, appear);
+      g += expClay(xs[i] + 295, 470, 1, 0.9, appear * after);
+    } else {
+      g += expPaper(xs[i] + 105, 470, 0, 0, 0.55, appear);
+      g += expPaper(xs[i] + 295, 470, 3, 1, 0.55, appear * after);
+    }
+  }
+  g += expLabel(800, 760, '記錄歷程', 36, EXP_YELLOW, expK(u, 8.5, 9.5));
+  return expPaint(g);
+}
+
+function s3(u) {
+  let g = head(u, '排次序', '由開始到結束') + expTag(1);
+  const arrowK = expK(u, 0.3, 1.3);
+  g += `<g opacity="${expO(arrowK)}">${expLine(180, 620, 1420, 620, C.chalk, 5)}<path d="M1420 620 L1398 608 L1398 632 Z" fill="${C.yellow}"/></g>`;
+  g += expLabel(220, 685, '開始', 34, C.chalk, expK(u, 1.0, 1.6));
+  g += expLabel(1380, 685, '結束', 34, C.chalk, expK(u, 1.0, 1.6));
+  const xs = [330, 610, 890, 1170];
+  const stages = [0, 1, 2, 4];
+  for (let i = 0; i < xs.length; i++) {
+    const appear = expK(u, 2.0 + i * 2, 2.6 + i * 2);
+    g += expCup(xs[i], 500, stages[i], 0.8, appear);
+    g += expLine(xs[i], 592, xs[i], 610, C.chalk, 4, appear);
+  }
+  g += expLabel(800, 300, '由開始到結束', 36, EXP_YELLOW, expK(u, 9.5, 10.5));
+  return expPaint(g);
+}
+
+function s4(u) {
+  let g = head(u, '排次序', '時間式：照時間') + expTag(1);
+  g += expLabel(800, 250, '時間式', 36, EXP_YELLOW, expK(u, 0.2, 0.8));
+  let label = '第1天', flip = 0;
+  if (u >= 5.0 && u < 5.6) { label = '第3天'; flip = expK(u, 5.0, 5.6); }
+  else if (u >= 5.6 && u < 9.0) { label = '第3天'; flip = 1; }
+  else if (u >= 9.0 && u < 9.6) { label = '第7天'; flip = expK(u, 9.0, 9.6); }
+  else if (u >= 9.6) { label = '第7天'; flip = 1; }
+  g += expCalendar(380, 520, label, flip, expK(u, 1.0, 1.5));
+  g += expCup(860, 560, expCupStageAt(u), 1.6, expK(u, 2.0, 2.5));
+  const phrases = [
+    ['變得又胖', 400, 3.0],
+    ['長出白根', 520, 6.6],
+    ['打開兩葉', 640, 10.8],
+  ];
+  for (const [word, y, t] of phrases) {
+    const op = expK(u, t, t + 0.4);
+    g += `<circle cx="1125" cy="${y - 10}" r="7" fill="${C.yellow}" opacity="${expO(op)}"/>`;
+    g += expPhrase(1150, y, word, 30, C.chalk, op);
+  }
+  return expPaint(g);
+}
+
+function s5(u) {
+  let g = head(u, '排次序', '事件式：照步驟') + expTag(1);
+  g += expLabel(800, 250, '事件式', 36, EXP_YELLOW, expK(u, 0.2, 0.8));
+  const xs = [150, 630, 1110];
+  const tags = ['開始', '接著', '後來'];
+  const phrases = ['滴顏料', '用吸管吹', '等它晾乾'];
+  const starts = [0.8, 4.0, 7.2];
+  const labelsAt = [2.7, 5.9, 9.0];
+  for (let i = 0; i < 3; i++) {
+    const op = expK(u, starts[i], starts[i] + 0.5);
+    const cx = xs[i] + 170;
+    g += expCardFrame(xs[i], 330, 340, 300, op, false, C.chalk);
+    g += expLabel(cx, 315, tags[i], 30, EXP_YELLOW, op);
+    const k = i === 0 ? expK(u, 1.2, 2.7) : i === 1 ? expK(u, 4.4, 5.9) : 1;
+    const paperOp = i === 2 ? expK(u, 7.6, 9.0) : op;
+    g += expPaper(cx, 450, i + 1, k, 0.9, paperOp);
+    g += expPhrase(cx, 580, phrases[i], 30, C.chalk, expK(u, labelsAt[i], labelsAt[i] + 0.4), 'middle');
+  }
+  g += expArrow(500, 480, 620, 480, expK(u, 3.4, 4.0));
+  g += expArrow(980, 480, 1100, 480, expK(u, 6.6, 7.2));
+  return expPaint(g);
+}
+
+function s6(u) {
+  let g = head(u, '骨架', '四段各寫什麼') + expTag(1);
+  const xs = [140, 360, 780, 1200];
+  const ws = [200, 400, 400, 200];
+  const tags = ['準備材料', '前三天', '第四到七天', '總結結果'];
+  const words = [['十顆綠豆', '濕棉花'], ['變胖', '長白根'], ['長莖', '開兩葉'], ['七天變小芽']];
+  const starts = [0.2, 0.55, 0.9, 1.25];
+  for (let i = 0; i < 4; i++) {
+    const land = expK(u, starts[i], starts[i] + 0.55);
+    const fallY = 70 * (1 - land);
+    const titleOp = expK(u, 1.0 + i * 0.35, 1.35 + i * 0.35);
+    g += `<g transform="translate(0 ${fallY})" opacity="${expO(land)}">${expBlock(xs[i], 250, ws[i], 210, EXP_BLUE, 1, false)}${expWorkTag(xs[i], 300, ws[i], tags[i], titleOp)}</g>`;
+  }
+  const iconStarts = [2.5, 3.15, 3.8, 4.55];
+  const cx = [240, 560, 980, 1280];
+  const stages = [0, 2, 4, 4];
+  for (let i = 0; i < 4; i++) {
+    const land = expK(u, starts[i], starts[i] + 0.55);
+    const iconOp = expK(u, iconStarts[i], iconStarts[i] + 0.45) * land;
+    const iconY = 400 + 70 * (1 - land);
+    const scale = i === 3 ? 0.45 : 0.55;
+    g += expCup(cx[i], iconY, stages[i], scale, iconOp);
+  }
+  g += expCheck(1362, 372, 0.5, expK(u, 4.55, 5.0));
+  for (let i = 0; i < 4; i++) {
+    const x = xs[i] + ws[i] / 2;
+    const op = expK(u, 5.0 + i * 0.55, 5.45 + i * 0.55);
+    if (words[i].length === 1) g += expPhrase(x, 510, words[i][0], 30, EXP_YELLOW, op, 'middle');
+    else {
+      g += expPhrase(x, 510, words[i][0], 30, EXP_YELLOW, op, 'middle');
+      g += expPhrase(x, 552, words[i][1], 30, EXP_YELLOW, op, 'middle');
+    }
+  }
+  g += expPhrase(1300, 600, '不寫感想', 30, EXP_YELLOW, expK(u, 9.0, 10.0), 'middle');
+  return expPaint(g);
+}
+
+function expMoveCard(cx, cy, label, op = 1) {
+  return `<g opacity="${expO(op)}">${expCardFrame(cx - 150, cy - 55, 300, 110, 1, false, C.chalk)}${expLabel(cx, cy + 10, label, 30, C.chalk)}</g>`;
+}
+
+function s7(u) {
+  let g = head(u, '檢查', '先後要對') + expTag(1);
+  const lineOp = expK(u, 0.2, 0.8);
+  g += expLine(220, 560, 1380, 560, C.chalk, 5, lineOp);
+  const originals = [
+    { x: 400, text: '打開兩葉' },
+    { x: 800, text: '變得又胖' },
+    { x: 1200, text: '長出白根' },
+  ];
+  for (let i = 0; i < originals.length; i++) {
+    const a = [0.5, 1.0, 1.5][i];
+    const op = expK(u, a, a + 0.5) * (1 - 0.94 * expK(u, 5.5, 6.0));
+    g += expMoveCard(originals[i].x, 470, originals[i].text, op);
+  }
+  const lift3 = expK(u, 5.5, 6.0);
+  const across3 = expK(u, 6.7, 7.1);
+  const down3 = expK(u, 7.1, 7.5);
+  if (u >= 5.5) {
+    let x3 = 1200, y3 = lerp(470, 330, lift3);
+    if (u >= 6.7 && u < 7.1) { x3 = lerp(1200, 800, across3); y3 = 330; }
+    else if (u >= 7.1) { x3 = 800; y3 = lerp(330, 470, down3); }
+    g += expMoveCard(x3, y3, '長出白根', 1);
+  }
+  if (u >= 6.0) {
+    const move1 = expK(u, 6.0, 6.7);
+    const x1 = lerp(400, 1200, move1);
+    const y1 = 470 - 140 * Math.sin(Math.PI * move1);
+    let x2 = 800, y2 = 470;
+    if (u < 6.12) y2 = lerp(470, 520, expK(u, 6.0, 6.12));
+    else if (u < 6.55) { x2 = lerp(800, 400, expK(u, 6.12, 6.55)); y2 = 520; }
+    else { x2 = 400; y2 = lerp(520, 470, expK(u, 6.55, 6.7)); }
+    g += expMoveCard(x1, y1, '打開兩葉', 1);
+    g += expMoveCard(x2, y2, '變得又胖', 1);
+  }
+  const crossOp = expK(u, 4.5, 5.0) * (1 - expK(u, 5.5, 6.0));
+  g += expCross(520, 430, 24, crossOp);
+  let lx = 800, ly = 260, lensOp = 0;
+  if (u >= 2.5 && u < 3.2) { const p = expK(u, 2.5, 3.2); lx = lerp(800, 400, p); ly = lerp(260, 470, p); lensOp = p; }
+  else if (u >= 3.2 && u < 4.5) { lx = 400 + 24 * Math.sin((u - 3.2) * Math.PI * 2); ly = 470; lensOp = 1; }
+  else if (u >= 4.5 && u < 5.0) { lx = 400; ly = 470; lensOp = 1; }
+  else if (u >= 5.0 && u < 5.5) { const p = expK(u, 5.0, 5.5); lx = lerp(400, 1460, p); ly = lerp(470, 290, p); lensOp = 1; }
+  else if (u >= 5.5) { lx = 1460; ly = 290; lensOp = 1; }
+  if (lensOp > 0.01) g += expLens(lx, ly, 48, lensOp);
+  const days = [
+    ['第1天', 400, 8.0],
+    ['第3天', 800, 8.5],
+    ['第7天', 1200, 9.0],
+  ];
+  for (const [day, x, t] of days) g += expLabel(x, 395, day, 30, EXP_YELLOW, expK(u, t, t + 0.45));
+  const badge = expK(u, 9.5, 10.0);
+  g += expStar(1482, 420, 26, badge) + expCheck(1430, 482, 0.6, badge);
+  g += expLabel(600, 660, '先後要對', 34, EXP_YELLOW, expK(u, 10.0, 10.5));
+  g += expLabel(1000, 660, '寫出第幾天', 34, EXP_YELLOW, expK(u, 10.0, 10.5));
+  return expPaint(g);
+}
+
+function s8(u) {
+  let g = head(u, '動筆', '第一句先說準備') + expTag(1);
+  const blockOp = expK(u, 0.2, 0.8);
+  g += expBlock(300, 250, 1000, 280, EXP_BLUE, blockOp, false);
+  g += expWorkTag(300, 300, 1000, '準備材料', blockOp);
+  const sentence = '把十顆綠豆放在濕棉花上，每天早上澆一次水。';
+  g += expType(sentence, u, 800, 410, 36, EXP_YELLOW, 0.8, 6.5);
+  const marks = expK(u, 7.0, 8.0);
+  const labels = [
+    [458, 602, '材料', 530],
+    [674, 782, '材料', 728],
+    [854, 1142, '方法', 998],
+  ];
+  for (const [x1, x2, text, cx] of labels) {
+    g += expBracket(x1, x2, 445, marks, EXP_YELLOW);
+    g += expLabel(cx, 490, text, 30, EXP_YELLOW, marks);
+  }
+  return expPaint(g);
+}
+
+function s9(u) {
+  let g = head(u, '練習', '換你排骨架') + expTag(1);
+  const title = expK(u, 0.2, 0.8);
+  g += `<g opacity="${expO(title)}">${box(620, 200, 360, 72, EXP_YELLOW, 1, C.deep)}${expLabel(800, 248, '〈紙黏土的製作〉', 40, EXP_YELLOW)}</g>`;
+  const choices = [
+    { x: 470, text: '時間式' },
+    { x: 730, text: '事件式' },
+  ];
+  for (let i = 0; i < choices.length; i++) {
+    const op = expK(u, 0.6 + i * 0.25, 1.0 + i * 0.25);
+    g += expOrderCard(choices[i].x, 300, 200, 56, choices[i].text, op, true);
+  }
+  const xs = [140, 360, 780, 1200];
+  const ws = [200, 400, 400, 200];
+  const tags = ['準備材料', '第一步', '接下來', '總結結果'];
+  for (let i = 0; i < 4; i++) {
+    const op = expK(u, 2.0 + i * 0.7, 2.7 + i * 0.6);
+    g += expBlock(xs[i], 420, ws[i], 170, EXP_BLUE, op, true);
+    g += expWorkTag(xs[i], 510, ws[i], tags[i], op);
+  }
+  const flashStarts = [6.0, 7.0, 8.0, 9.0, 10.0, 11.0];
+  const targets = [
+    { x: 470, y: 300, w: 200, h: 56 },
+    { x: 730, y: 300, w: 200, h: 56 },
+    { x: 140, y: 420, w: 200, h: 170 },
+    { x: 360, y: 420, w: 400, h: 170 },
+    { x: 780, y: 420, w: 400, h: 170 },
+    { x: 1200, y: 420, w: 200, h: 170 },
+  ];
+  for (let i = 0; i < targets.length; i++) {
+    const f = expFlash(u, flashStarts[i]);
+    if (f > .01) {
+      const r = targets[i];
+      g += `<rect x="${r.x + 4}" y="${r.y + 4}" width="${r.w - 8}" height="${r.h - 8}" rx="12" fill="rgba(242,193,78,${(0.24 * f).toFixed(3)})" stroke="none"/>`;
+    }
+  }
+  return expPaint(g);
+}
+
+const SEGS = [
+  { len: 12, grp: "開場", name: "這次寫怎麼變", scene: s1,
+    cap: "上學期寫一個地方<b>是什麼</b>。這學期的說明文，要記錄一件事<b>怎麼變</b>，像〈種子的發芽〉。（解說牌、杯子是示意）" },
+  { len: 13, grp: "寫什麼", name: "三個歷程題目", scene: s2,
+    cap: "三下要寫的題目：種子的發芽、紙黏土的製作、吹畫的製作。都是在<b>記錄歷程</b>：從前面變成後面。" },
+  { len: 13, grp: "排次序", name: "由開始到結束", scene: s3,
+    cap: "記錄歷程，要照<b>由開始到結束</b>的次序排，先發生的寫在前面。（箭頭是比喻）" },
+  { len: 14, grp: "排次序", name: "時間式：照時間", scene: s4,
+    cap: "照時間先後排，叫<b>時間式</b>：第一天、第三天、第七天，一天一天寫下去。（天數是示範）" },
+  { len: 13, grp: "排次序", name: "事件式：照步驟", scene: s5,
+    cap: "照步驟先後排，叫<b>事件式</b>：開始、接著、後來。像吹畫：滴顏料、用吸管吹、等它晾乾。（步驟自編）" },
+  { len: 15, grp: "骨架", name: "四段各寫什麼", scene: s6,
+    cap: "〈種子的發芽〉排成四段：<b>準備材料、前三天、第四到七天、總結結果</b>。這篇也<b>不寫感想</b>。（範例自編）" },
+  { len: 14, grp: "檢查", name: "先後要對", scene: s7,
+    cap: "先打開葉子，才變胖？順序錯了！<b>先後要對</b>，還要<b>寫出第幾天</b>，讀的人才清楚。（例子自編）" },
+  { len: 12, grp: "動筆", name: "第一句先說準備", scene: s8,
+    cap: "第一段先寫準備：用了什麼<b>材料</b>、用什麼<b>方法</b>。（示範句是自編的）" },
+  { len: 14, grp: "練習", name: "換你排骨架", scene: s9,
+    cap: "換你排〈紙黏土的製作〉：先選照時間或照步驟，再排四段，最後一段<b>總結結果</b>。" },
+];
+
+// ===================== 工具（通常不用改）=====================
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const P = (u, a, b) => clamp((u - a) / (b - a), 0, 1);           // u 在 [a,b] 的進度 0–1
+const ease = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const lerp = (a, b, k) => a + (b - a) * k;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); } // 固定種子亂數
+function txt(x, y, s, o = {}) {
+  const a = o.a || 'start', size = o.s || 32, fill = o.f || 'var(--chalk)', op = o.o ?? 1, w = o.w ? 700 : 400, cls = o.c || 't-chalk';
+  return `<text x="${x}" y="${y}" class="${cls}" font-size="${size}" font-weight="${w}" text-anchor="${a}" fill="${fill}" opacity="${op}">${esc(s)}</text>`;
+}
+function box(x, y, w, h, stroke = 'var(--chalk)', op = 1, fill = 'none') {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="3" opacity="${op}"/>`;
+}
+function head(u, kicker, title) {
+  const o = ease(P(u, 0, 0.8));
+  return txt(80, 90, kicker, { c: 't-body', s: 24, f: 'var(--chalk-dim)', o }) + txt(80, 150, title, { s: 50, w: 1, o });
+}
+
+let acc = 0; SEGS.forEach((s) => { s.a = acc; acc += s.len; s.b = acc; });
+window.DURATION = acc;
+window.SEGS = SEGS.map(({ len, grp, name, cap, a, b }) => ({ len, grp, name, cap, a, b }));
+const stage = document.getElementById('stage'), capEl = document.getElementById('caption');
+const segIndex = (t) => { for (let i = 0; i < SEGS.length; i++) if (t < SEGS[i].b) return i; return SEGS.length - 1; };
+window.seek = async function (t) {
+  t = clamp(Number(t) || 0, 0, window.DURATION);
+  const i = segIndex(t), s = SEGS[i];
+  const u = t - s.a;
+  // 段落切換時淡入淡出（只由 t 決定）
+  const fade = Math.min(P(u, 0, 0.35), i === SEGS.length - 1 ? 1 : 1 - P(u, s.len - 0.35, s.len));
+  stage.innerHTML = `<g opacity="${fade.toFixed(3)}">${s.scene(u)}</g>` +
+    txt(1520, 870, `${i + 1} / ${SEGS.length}・${s.grp}・${s.name}`, { a: 'end', c: 't-body', s: 18, f: 'var(--chalk-dim)' });
+  capEl.innerHTML = s.cap; // 字幕只來自本檔 SEGS（作者撰寫、只含 <b>）
+  return true;
+};
+window.ready = Promise.all([document.fonts ? document.fonts.ready.catch(() => null) : null]);
+
+// ===================== 播放器外殼（只呼叫 seek）=====================
+document.title = META.title;
+document.getElementById('title').textContent = META.title;
+document.getElementById('subtitle').textContent = META.subtitle;
+document.getElementById('note').textContent = META.note;
+stage.setAttribute('aria-label', META.ariaLabel);
+const works = document.getElementById('works');
+if (!META.works.length) document.querySelector('.works').hidden = true;
+for (const [label, desc, href] of META.works) {
+  const li = document.createElement('li'), a = document.createElement('a'), sp = document.createElement('span');
+  a.href = href; a.textContent = label; a.target = '_blank'; a.rel = 'noopener'; sp.textContent = desc;
+  li.append(a, sp); works.append(li);
+}
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time');
+scrub.max = window.DURATION;
+// 分段刻度：每段分界一條細線（段落起點／總長）；刻度只畫在 #seekMarks，不影響 range 本身
+const playerMarks = document.getElementById('seekMarks');
+SEGS.forEach((s, i) => { if (i > 0) { const d = document.createElement('i'); d.style.left = (s.a / window.DURATION * 100) + '%'; playerMarks.append(d); } });
+// 進度條列收合：預設收起；只有獨立播放（非 embed）才讀寫 localStorage 的 UI 狀態，embed 一律不碰；不可用時只留在記憶體
+const playerEmbed = document.documentElement.classList.contains('embed');
+const playerUiGet = (k) => { if (playerEmbed) return false; try { return localStorage.getItem(k) === '1'; } catch { return false; } };
+const playerUiSet = (k, v) => { if (playerEmbed) return; try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+let playerSeekOpen = playerUiGet('anim.ui.seek');
+const playerToggle = document.getElementById('toggleSeek'), playerSeekRow = document.getElementById('seekrow');
+function playerApplyUi() {
+  playerSeekRow.hidden = !playerSeekOpen;
+  playerToggle.setAttribute('aria-expanded', String(playerSeekOpen));
+  playerToggle.textContent = playerSeekOpen ? '進度條 ▾' : '進度條 ▸';
+}
+playerToggle.onclick = () => { playerSeekOpen = !playerSeekOpen; playerUiSet('anim.ui.seek', playerSeekOpen); playerApplyUi(); };
+playerApplyUi();
+// ===== 標註工具（手寫筆跡＋文字；以段落為單位、只存在記憶體、不送網路）=====
+// 與研習平台頁同一套操作：畫筆、文字、5 色色票、收回上一筆、清除本段標註；「標註工具 ▸／▾」可收合（預設收起，鍵 anim.ui.ink）。
+// ?embed=1 完全不啟用（研習平台自己有標註）。座標一律存 0–1 的相對位置，舞台縮放或長寬比改變時筆跡仍落在同一處。
+(() => {
+  if (document.documentElement.classList.contains('embed')) return;
+  const stageEl = document.getElementById('stage') || document.getElementById('c');
+  const ctl = document.querySelector('.controls') || document.getElementById('bar');
+  if (!stageEl || !ctl || typeof window.seek !== 'function') return;
+  const COLORS = ['#efe9d8', '#f2c14e', '#e8875b', '#7fb6d9', '#8fd18a'];
+  const ends = typeof SEGS !== 'undefined' ? SEGS.map((s) => s.b) : TIMING.map((s) => s.end);
+  const segOf = (t) => { for (let i = 0; i < ends.length; i++) if (t < ends[i]) return i; return ends.length - 1; };
+  const uiGet = () => { try { return localStorage.getItem('anim.ui.ink') === '1'; } catch { return false; } };
+  const uiSet = (v) => { try { localStorage.setItem('anim.ui.ink', v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  const store = new Map(); // 段落索引 → [{k:'s',color,pts} | {k:'l',x,y,text,color}]（依畫下順序）
+  const items = (i) => { let a = store.get(i); if (!a) store.set(i, (a = [])); return a; };
+  let seg = 0, tool = null, penColor = COLORS[1], drawing = null, labelAt = null, open = uiGet();
+
+  // 標註層：有 .board 就掛在木框內（與 SVG 同尺寸）；沒有（如純 canvas 舞台）就掛在舞台父層並追蹤舞台矩形
+  const board = stageEl.closest('.board'), host = board || stageEl.parentElement;
+  if (!board) host.style.position = 'relative';
+  const layer = mk('div', 'annoLayer'), cv = mk('canvas'), labels = mk('div', 'annoLabels'), inp = mk('input', 'annoInput');
+  cv.setAttribute('aria-label', '標註區');
+  inp.type = 'text'; inp.maxLength = 60; inp.hidden = true; inp.placeholder = '輸入文字，按 Enter 放上；Esc 取消'; inp.setAttribute('aria-label', '文字標註');
+  layer.append(cv, labels, inp); host.append(layer);
+  const ctx = cv.getContext('2d');
+
+  // 工具列（控制列第三列）與切換鈕
+  const toggle = mk('button', '', '標註工具 ▸'), row = mk('div', 'annoRow');
+  toggle.id = 'toggleInk'; toggle.type = 'button'; toggle.setAttribute('aria-controls', 'annoTools'); toggle.setAttribute('aria-expanded', 'false');
+  row.id = 'annoTools'; row.hidden = true;
+  const penBtn = mk('button', '', '畫筆'), textBtn = mk('button', '', '文字'), sw = mk('span', 'annoSwatches'), undoBtn = mk('button', '', '收回上一筆'), clearBtn = mk('button', '', '清除本段標註');
+  for (const b of [penBtn, textBtn, undoBtn, clearBtn]) b.type = 'button';
+  penBtn.setAttribute('aria-pressed', 'false'); textBtn.setAttribute('aria-pressed', 'false');
+  const swBtns = COLORS.map((c, i) => {
+    const b = mk('button', 'annoSwatch'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', `顏色 ${i + 1}`); b.setAttribute('aria-pressed', c === penColor ? 'true' : 'false');
+    b.onclick = () => { penColor = c; swBtns.forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); if (labelAt) { inp.style.color = c; inp.focus(); } else if (!tool) setTool('pen'); };
+    sw.append(b); return b;
+  });
+  row.append(penBtn, textBtn, sw, undoBtn, clearBtn);
+  const seekToggle = document.getElementById('toggleSeek');
+  if (seekToggle && seekToggle.parentNode === ctl) seekToggle.after(toggle); else ctl.append(toggle);
+  ctl.append(row);
+
+  function fit() {
+    if (!board) { layer.style.inset = 'auto'; Object.assign(layer.style, { left: stageEl.offsetLeft + 'px', top: stageEl.offsetTop + 'px', width: stageEl.offsetWidth + 'px', height: stageEl.offsetHeight + 'px' }); }
+    const w = layer.clientWidth, h = layer.clientHeight, d = window.devicePixelRatio || 1;
+    layer.style.setProperty('--u', (w / 1600) + 'px');
+    cv.width = Math.max(1, Math.round(w * d)); cv.height = Math.max(1, Math.round(h * d));
+    redraw();
+  }
+  function strokePath(s) {
+    const p = s.pts, W = cv.width, H = cv.height, d = W / (layer.clientWidth || W);
+    if (p.length < 4) return;
+    ctx.strokeStyle = s.color; ctx.lineWidth = Math.max(2 * d, 5 * W / 1600); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(p[0] * W, p[1] * H);
+    for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * W, p[i + 1] * H);
+    ctx.stroke();
+  }
+  function redraw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (const it of items(seg)) if (it.k === 's') strokePath(it);
+    if (drawing && drawing.seg === seg) strokePath(drawing);
+  }
+  function renderLabels() {
+    labels.replaceChildren(...items(seg).filter((i) => i.k === 'l').map((l) => {
+      const d = mk('div', 'annoLabel', l.text);
+      d.style.left = (l.x * 100) + '%'; d.style.top = (l.y * 100) + '%'; d.style.color = l.color; d.style.borderColor = l.color;
+      return d;
+    }));
+  }
+  function setTool(t) {
+    tool = t;
+    penBtn.setAttribute('aria-pressed', t === 'pen' ? 'true' : 'false');
+    textBtn.setAttribute('aria-pressed', t === 'text' ? 'true' : 'false');
+    cv.classList.toggle('on', !!t); cv.classList.toggle('text-mode', t === 'text');
+    if (t !== 'text') closeInput();
+  }
+  function openInput(x, y) {
+    labelAt = { x, y, seg };
+    inp.value = ''; inp.style.left = (Math.min(x, 0.62) * 100) + '%'; inp.style.top = (Math.max(0.05, Math.min(y, 0.95)) * 100) + '%'; inp.style.color = penColor;
+    inp.hidden = false; requestAnimationFrame(() => inp.focus());
+  }
+  function closeInput() { inp.hidden = true; labelAt = null; }
+  function norm(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 10000) / 10000, Math.round(Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) * 10000) / 10000];
+  }
+  function endStroke() {
+    if (!drawing) return;
+    const s = drawing; drawing = null;
+    if (s.pts.length === 2) s.pts.push(s.pts[0] + 1 / 1600, s.pts[1] + 1 / 900); // 點一下也留下一個點
+    items(s.seg).push(s);
+    if (s.seg === seg) redraw();
+  }
+  cv.addEventListener('pointerdown', (e) => {
+    if (!tool) return;
+    e.preventDefault();
+    const [x, y] = norm(e);
+    if (tool === 'text') { openInput(x, y); return; }
+    cv.setPointerCapture(e.pointerId);
+    drawing = { k: 's', seg, color: penColor, pts: [x, y] };
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drawing) return;
+    const [x, y] = norm(e), p = drawing.pts, r = cv.getBoundingClientRect();
+    if (Math.hypot((x - p[p.length - 2]) * r.width, (y - p[p.length - 1]) * r.height) < 3 || p.length >= 800) return;
+    p.push(x, y); redraw();
+  });
+  cv.addEventListener('pointerup', endStroke);
+  cv.addEventListener('pointercancel', endStroke);
+  cv.addEventListener('click', (e) => e.stopPropagation()); // 全螢幕「點畫面播放／暫停」不被標註動作觸發
+  // 文字輸入：所有按鍵都不往上送，空白鍵、方向鍵、F 不會觸發播放器快捷鍵
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      const text = inp.value.trim();
+      if (text && labelAt) { items(labelAt.seg).push({ k: 'l', x: labelAt.x, y: labelAt.y, text, color: penColor }); if (labelAt.seg === seg) renderLabels(); }
+      closeInput();
+    } else if (e.key === 'Escape') closeInput();
+  });
+  inp.addEventListener('keyup', (e) => e.stopPropagation());
+  inp.addEventListener('blur', (e) => { if (e.relatedTarget && row.contains(e.relatedTarget)) return; closeInput(); }); // 點色票／按鈕時保留輸入，點別處就取消
+  penBtn.onclick = () => setTool(tool === 'pen' ? null : 'pen');
+  textBtn.onclick = () => setTool(tool === 'text' ? null : 'text');
+  undoBtn.onclick = () => { if (items(seg).pop()) { redraw(); renderLabels(); } };
+  clearBtn.onclick = () => { if (items(seg).length && confirm('清除本段所有筆跡與文字標註？')) { items(seg).length = 0; redraw(); renderLabels(); } };
+  function applyUi() {
+    row.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? '標註工具 ▾' : '標註工具 ▸';
+    if (!open) setTool(null);
+  }
+  toggle.onclick = () => { open = !open; uiSet(open); applyUi(); };
+  // 全螢幕下不放工具列；進入全螢幕時關閉畫筆，筆跡仍顯示（標註層在全螢幕元素內）
+  document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) setTool(null); });
+  // 換段時顯示該段的標註：包住 seek，不改變 seek 的畫面與回傳值
+  const baseSeek = window.seek;
+  window.seek = async function (t) {
+    const r = await baseSeek.call(this, t);
+    const i = segOf(Number(t) || 0);
+    if (i !== seg) { seg = i; closeInput(); redraw(); renderLabels(); }
+    return r;
+  };
+  new ResizeObserver(fit).observe(board || stageEl);
+  applyUi(); fit();
+})();
+let cur = 0, playing = false, last = 0;
+const chap = document.getElementById('chapters');
+const btns = SEGS.map((s, i) => {
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button'; b.textContent = `${i + 1}・${s.name}`; b.onclick = () => { playerPause(); playerShow(s.a); };
+  li.append(b); chap.append(li); return b;
+});
+function playerShow(t) {
+  cur = clamp(t, 0, window.DURATION); scrub.value = cur;
+  timeEl.textContent = `${cur.toFixed(1)} / ${window.DURATION.toFixed(1)}`;
+  window.seek(cur);
+  const i = segIndex(cur); btns.forEach((b, j) => b.setAttribute('aria-current', j === i ? 'true' : 'false'));
+}
+function playerTick(now) { if (!playing) return; cur += (now - last) / 1000; last = now; if (cur >= window.DURATION) { cur = window.DURATION; playerPause(); } playerShow(cur); if (playing) requestAnimationFrame(playerTick); }
+function playerPlay() { if (cur >= window.DURATION - 0.05) cur = 0; playing = true; playBtn.textContent = '暫停'; last = performance.now(); requestAnimationFrame(playerTick); }
+function playerPause() { playing = false; playBtn.textContent = '播放'; }
+playBtn.onclick = () => (playing ? playerPause() : playerPlay());
+scrub.oninput = () => { playerPause(); playerShow(Number(scrub.value)); };
+document.getElementById('prev').onclick = () => { playerPause(); playerShow(SEGS[segIndex(cur - 0.6)].a); };
+document.getElementById('next').onclick = () => { playerPause(); const i = segIndex(cur) + 1; playerShow(i < SEGS.length ? SEGS[i].a : window.DURATION); };
+document.getElementById('fs').onclick = () => { const th = document.getElementById('theater'); document.fullscreenElement ? document.exitFullscreen() : th.requestFullscreen?.(); };
+addEventListener('keydown', (e) => {
+  if (document.documentElement.classList.contains('embed')) return;
+  if (e.target.closest('input,button')) return;
+  if (e.key === ' ') { e.preventDefault(); playing ? playerPause() : playerPlay(); }
+  else if (e.key === 'ArrowRight') document.getElementById('next').click();
+  else if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+  else if (e.key === 'f' || e.key === 'F') document.getElementById('fs').click();
+});
+window.ready.then(() => playerShow(cur));
+// 研習平台嵌入契約（postMessage 握手，鍵名 ptt 為相容用）：被嵌入時才啟用
+addEventListener('message', (e) => {
+  if (e.source !== window.parent || window.parent === window) return;
+  const m = e.data;
+  if (!m || m.ptt !== 1 || m.type !== 'seek' || typeof m.t !== 'number' || !Number.isFinite(m.t)) return;
+  window.seek(m.t);
+});
+if (window.parent !== window) window.ready.then(() => parent.postMessage({ ptt: 1, type: 'ready', duration: window.DURATION }, '*'));
+</script>
+</html>
