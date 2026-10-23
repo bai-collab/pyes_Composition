@@ -1,0 +1,602 @@
+// 六年級記敘文（寫事，進階）第二集：場景只由段內 u（秒）決定。
+const META = {
+  title: '頭尾都回到那一刻',
+  subtitle: '9 段・約 2 分鐘・六年級記敘文（寫事）第二集',
+  ariaLabel: '以四塊積木、事件照片、珠串、蝴蝶結和印章，呈現果因果式頭尾兩段如何長肉。',
+  note: '出處：楊裕貿研習講義；記事學習單。積木、工作牌、珠子、蝴蝶結、照片、印章是視覺比喻；示範句、短語與情節依講義結構自編。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換段落，F 鍵全螢幕。畫面只由時間決定。',
+  works: [],
+};
+
+const EFL_BLUE = '#7fb6d9';
+const EFL_ORANGE = '#e8875b';
+const EFL_RED = '#d9605a';
+const EFL_X = [140, 365, 805, 1245];
+const EFL_W = [215, 430, 430, 215];
+const EFL_COLORS = [EFL_BLUE, EFL_BLUE, EFL_BLUE, EFL_ORANGE];
+const eflK = (u, a, b) => ease(P(u, a, b));
+const eflO = (v) => Math.max(0, Math.min(1, Number(v) || 0)).toFixed(3);
+const eflN = (v) => Number(v).toFixed(1);
+
+function eflTag(op = 1) {
+  return '<g opacity="' + eflO(op) + '">' + box(1375, 56, 165, 60, EFL_ORANGE, 1, C.deep) +
+    txt(1457, 98, '比喻', { a: 'middle', s: 30, w: 1, f: EFL_ORANGE }) + '</g>';
+}
+
+function eflLabel(cx, y, value, size = 30, color = C.chalk, op = 1) {
+  if (op <= 0.001) return '';
+  return txt(cx, y, value, { a: 'middle', s: size, w: 1, f: color, o: op });
+}
+
+function eflFitLabel(cx, y, value, size, color, op, maxWidth) {
+  if (op <= 0.001) return '';
+  return '<text x="' + eflN(cx) + '" y="' + eflN(y) + '" class="t-chalk" font-size="' + size +
+    '" font-weight="700" text-anchor="middle" fill="' + color + '" opacity="' + eflO(op) +
+    '" textLength="' + eflN(maxWidth) + '" lengthAdjust="spacingAndGlyphs">' + esc(value) + '</text>';
+}
+
+function eflTextByChar(value, cx, y, size, color = C.chalk, op = 1) {
+  const chars = Array.from(value);
+  return chars.map((ch, i) => txt(cx + (i - (chars.length - 1) / 2) * size, y, ch, {
+    a: 'middle', s: size, w: 1, f: color, o: op,
+  })).join('');
+}
+
+function eflType(value, u, cx, y, size, color, start, end, op = 1) {
+  if (u <= start) return '';
+  const chars = Array.from(value);
+  const count = Math.min(chars.length, Math.ceil(P(u, start, end) * chars.length));
+  if (count <= 0) return '';
+  return eflTextByChar(chars.slice(0, count).join(''), cx, y, size, color, op);
+}
+
+function eflTypeFixed(value, u, cx, y, size, color, start, end, op = 1) {
+  if (u <= start) return '';
+  const chars = Array.from(value);
+  const count = Math.min(chars.length, Math.ceil(P(u, start, end) * chars.length));
+  if (count <= 0) return '';
+  return chars.slice(0, count).map((ch, i) => txt(cx + (i - (chars.length - 1) / 2) * size, y, ch, {
+    a: 'middle', s: size, w: 1, f: color, o: op,
+  })).join('');
+}
+
+function eflLine(x1, y1, x2, y2, color = C.chalk, width = 5, op = 1, dash = '') {
+  if (op <= 0.001) return '';
+  return '<line x1="' + eflN(x1) + '" y1="' + eflN(y1) + '" x2="' + eflN(x2) + '" y2="' + eflN(y2) +
+    '" fill="none" stroke="' + color + '" stroke-width="' + width + '" stroke-linecap="round" opacity="' +
+    eflO(op) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+}
+
+function eflBlock(x, y, w, h, color, op = 1, dashed = false) {
+  if (op <= 0.001 || w <= 2 || h <= 2) return '';
+  if (dashed) return '<g opacity="' + eflO(op) + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" rx="14" fill="rgba(239,233,216,.012)" stroke="' + color + '" stroke-width="5" stroke-dasharray="14 10"/></g>';
+  let g = '<g opacity="' + eflO(op) + '">';
+  const n = Math.max(2, Math.floor(w / 130));
+  for (let i = 0; i < n; i++) {
+    const cx = x + w * (i + 0.5) / n;
+    g += '<rect x="' + eflN(cx - 20) + '" y="' + eflN(y - 11) + '" width="40" height="13" rx="6" fill="' + color + '"/>';
+  }
+  return g + '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" rx="14" fill="' + color + '" fill-opacity=".22" stroke="' + C.chalk + '" stroke-width="4"/></g>';
+}
+
+function eflBlockGlow(x, y, w, h, op = 1) {
+  const pad = 10;
+  const opacity = eflO(Math.min(0.25, Math.max(0, op)));
+  return '<rect x="' + (x - pad) + '" y="' + (y - pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) +
+    '" rx="18" fill="rgba(242,193,78,.22)" opacity="' + opacity + '"/>';
+}
+
+function eflCardFrame(x, y, w, h, op = 1, dashed = false, stroke = C.chalk) {
+  if (op <= 0.001) return '';
+  if (dashed) return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" rx="18" fill="rgba(239,233,216,.012)" stroke="' + stroke + '" stroke-width="4" stroke-dasharray="13 9" opacity="' + eflO(op) + '"/>';
+  return '<g opacity="' + eflO(op) + '">' + box(x, y, w, h, stroke, 1, C.deep) + '</g>';
+}
+
+function eflBead(cx, cy, r = 30, op = 1, dashed = false) {
+  if (op <= 0.002) return '';
+  const fill = dashed ? 'none' : EFL_BLUE;
+  const dash = dashed ? '8 7' : '';
+  return '<g opacity="' + eflO(op) + '"><circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(r) +
+    '" fill="' + fill + '" stroke="' + EFL_BLUE + '" stroke-width="4"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+    (dashed ? '' : '<ellipse cx="' + eflN(cx - r * 0.35) + '" cy="' + eflN(cy - r * 0.4) + '" rx="' + eflN(r * 0.25) +
+      '" ry="' + eflN(r * 0.14) + '" fill="#fff" opacity=".55" transform="rotate(-35 ' + eflN(cx - r * 0.35) + ' ' +
+      eflN(cy - r * 0.4) + ')"/>') + '</g>';
+}
+
+function eflBow(cx, cy, sc = 1, op = 1, dashed = false) {
+  if (op <= 0.002 || sc <= 0.01) return '';
+  const w = 64 * sc, h = 43 * sc, knot = 19 * sc;
+  const fill = dashed ? 'none' : EFL_ORANGE, dash = dashed ? ' stroke-dasharray="8 7"' : '';
+  return '<g opacity="' + eflO(op) + '"><polygon points="' + eflN(cx - 7 * sc) + ',' + eflN(cy) + ' ' +
+    eflN(cx - w) + ',' + eflN(cy - h) + ' ' + eflN(cx - w) + ',' + eflN(cy + h) + '" fill="' + fill +
+    '" stroke="' + EFL_ORANGE + '" stroke-width="4" stroke-linejoin="round"' + dash + '/><polygon points="' +
+    eflN(cx + 7 * sc) + ',' + eflN(cy) + ' ' + eflN(cx + w) + ',' + eflN(cy - h) + ' ' + eflN(cx + w) +
+    ',' + eflN(cy + h) + '" fill="' + fill + '" stroke="' + EFL_ORANGE + '" stroke-width="4" stroke-linejoin="round"' +
+    dash + '/><circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(knot) + '" fill="' +
+    (dashed ? 'none' : '#c96a40') + '" stroke="' + EFL_ORANGE + '" stroke-width="4"' + dash + '/></g>';
+}
+
+function eflThread(x1, x2, y, op = 1, dashed = false) {
+  return eflLine(x1, y, x2, y, dashed ? C.dim : C.chalk, 5, op, dashed ? '13 12' : '');
+}
+
+function eflGlow(cx, cy, rx = 70, ry = 55, op = 0.5) {
+  if (op <= 0.001) return '';
+  return '<g opacity="' + eflO(op) + '"><ellipse cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" rx="' + eflN(rx) +
+    '" ry="' + eflN(ry) + '" fill="rgba(242,193,78,.18)"/><ellipse cx="' + eflN(cx) + '" cy="' + eflN(cy) +
+    '" rx="' + eflN(rx - 12) + '" ry="' + eflN(ry - 10) + '" fill="none" stroke="' + C.yellow + '" stroke-width="5"/></g>';
+}
+
+function eflStamp(cx, cy, r, label, op = 1, active = false, dashed = false) {
+  if (op <= 0.001 || r <= 1) return '';
+  const col = active ? C.yellow : C.chalk;
+  if (dashed) return '<circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(r) +
+    '" fill="none" stroke="' + col + '" stroke-width="5" stroke-dasharray="11 9" opacity="' + eflO(op) + '"/>';
+  const labelY = cy + r + 39;
+  return '<g opacity="' + eflO(op) + '"><circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(r) +
+    '" fill="' + C.deep + '" stroke="' + col + '" stroke-width="5"/><path d="M' + eflN(cx - r * 0.38) + ' ' +
+    eflN(cy - 7) + ' H' + eflN(cx + r * 0.38) + ' M' + eflN(cx - r * 0.38) + ' ' + eflN(cy + 8) + ' H' +
+    eflN(cx + r * 0.38) + '" stroke="' + col + '" stroke-width="5" stroke-linecap="round"/>' +
+    txt(cx, labelY, label, { a: 'middle', s: 34, w: 1, f: col }) + '</g>';
+}
+
+function eflSeal(cx, cy, r, label, op = 1) {
+  if (op <= 0.001) return '';
+  return '<g opacity="' + eflO(op) + '"><circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(r) +
+    '" fill="' + C.deep + '" stroke="' + C.yellow + '" stroke-width="5"/>' +
+    txt(cx, cy + 11, label, { a: 'middle', s: 30, w: 1, f: C.yellow }) + '</g>';
+}
+
+function eflLens(cx, cy, r = 45, op = 1, dashed = false, handleUp = false) {
+  if (op <= 0.01 || r <= 1) return '';
+  const dash = dashed ? '11 9' : '';
+  const sy = handleUp ? -1 : 1;
+  return '<g opacity="' + eflO(op) + '"><circle cx="' + eflN(cx) + '" cy="' + eflN(cy) + '" r="' + eflN(r) +
+    '" fill="rgba(242,193,78,.045)" stroke="' + C.yellow + '" stroke-width="8"' +
+    (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/><path d="M' + eflN(cx + r * 0.68) + ' ' +
+    eflN(cy + sy * r * 0.68) + ' L' + eflN(cx + r * 1.28) + ' ' + eflN(cy + sy * r * 1.28) +
+    '" stroke="' + C.yellow + '" stroke-width="17" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') +
+    '/><path d="M' + eflN(cx + r * 0.8) + ' ' + eflN(cy + sy * r * 0.8) + ' L' + eflN(cx + r * 1.26) + ' ' +
+    eflN(cy + sy * r * 1.26) + '" stroke="' + C.chalk + '" stroke-width="4" stroke-linecap="round"' +
+    (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/></g>';
+}
+
+function eflStar(cx, cy, r, op = 1, dashed = false) {
+  if (op <= 0.01 || r <= 1) return '';
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = i % 2 ? r * 0.46 : r;
+    pts.push(eflN(cx + Math.cos(a) * rr) + ',' + eflN(cy + Math.sin(a) * rr));
+  }
+  return '<polygon points="' + pts.join(' ') + '" fill="' + (dashed ? 'none' : 'rgba(242,193,78,.3)') +
+    '" stroke="' + C.yellow + '" stroke-width="5" stroke-linejoin="round" opacity="' + eflO(op) +
+    '"' + (dashed ? ' stroke-dasharray="8 7"' : '') + '/>';
+}
+
+function eflHeart(cx, cy, scale = 1, op = 1) {
+  if (op <= 0.01 || scale <= 0.01) return '';
+  return '<path transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) +
+    ')" d="M0 38 C-13 21 -48 -2 -48 -24 C-48 -51 -15 -55 0 -31 C15 -55 48 -51 48 -24 C48 -2 13 21 0 38Z" ' +
+    'fill="rgba(232,135,91,.22)" stroke="' + EFL_ORANGE + '" stroke-width="6" opacity="' + eflO(op) + '"/>';
+}
+
+function eflHuman(cx, cy, scale = 1, op = 1, raiseHand = false) {
+  const arm = raiseHand ? 'M-5 -10 L-34 -32 M5 -10 L31 -25 L38 -60' : 'M-5 -10 L-36 14 M5 -10 L36 14';
+  return '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) + ')" opacity="' +
+    eflO(op) + '" stroke-linecap="round" stroke-linejoin="round"><circle cx="0" cy="-50" r="22" fill="rgba(240,217,189,.2)" stroke="' +
+    C.chalk + '" stroke-width="5"/><path d="M-9 -53 Q0 -61 9 -53" fill="none" stroke="' + C.chalk +
+    '" stroke-width="3"/><path d="M0 -28 L0 38 ' + arm + ' M0 38 L-26 76 M0 38 L26 76" fill="none" stroke="' +
+    C.chalk + '" stroke-width="8"/><path d="M-18 -20 Q0 -29 18 -20 L22 28 Q0 39 -22 28Z" fill="rgba(127,182,217,.2)" stroke="' +
+    EFL_BLUE + '" stroke-width="4"/></g>';
+}
+
+function eflDomino(cx, baseY, w, h, angle = 0, op = 1, dashed = false) {
+  if (op <= 0.001) return '';
+  return '<g transform="translate(' + eflN(cx) + ' ' + eflN(baseY) + ') rotate(' + eflN(angle) +
+    ')" opacity="' + eflO(op) + '"><rect x="' + eflN(-w / 2) + '" y="' + eflN(-h) + '" width="' + eflN(w) +
+    '" height="' + eflN(h) + '" rx="11" fill="' + (dashed ? 'none' : 'rgba(232,135,91,.13)') +
+    '" stroke="' + (dashed ? C.chalk : C.orange) + '" stroke-width="5"' +
+    (dashed ? ' stroke-dasharray="12 8"' : '') + '/>' +
+    (dashed ? '' : '<circle cx="0" cy="' + eflN(-h * 0.72) + '" r="7" fill="' + C.orange +
+      '"/><circle cx="0" cy="' + eflN(-h * 0.3) + '" r="7" fill="' + C.orange + '"/>') + '</g>';
+}
+
+function eflBell(cx, cy, scale = 1, angle = 0, opacity = 1) {
+  return '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) + ') rotate(' +
+    eflN(angle) + ')" opacity="' + eflO(opacity) + '" stroke-linejoin="round"><path d="M-37 33 Q-31 20 -29 -8 Q-26 -43 0 -52 Q26 -43 29 -8 Q31 20 37 33 Z" fill="rgba(239,233,216,.1)" stroke="' +
+    C.chalk + '" stroke-width="5"/><path d="M-43 34 L43 34 M-12 44 Q0 55 12 44" fill="none" stroke="' + C.chalk +
+    '" stroke-width="6" stroke-linecap="round"/><circle cx="0" cy="-57" r="7" fill="' + C.yellow + '"/></g>';
+}
+
+function eflMirror(cx, cy, scale = 1, op = 1) {
+  return '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) + ')" opacity="' +
+    eflO(op) + '" fill="none" stroke="' + C.chalk + '" stroke-linejoin="round"><ellipse cx="0" cy="-5" rx="30" ry="42" stroke-width="5"/>' +
+    '<path d="M0 37 L0 61 M-18 62 H18" stroke-width="5"/><path d="M-14 -20 Q0 -30 14 -20" stroke="' + C.yellow +
+    '" stroke-width="4"/></g>';
+}
+
+function eflMic(cx, cy, scale = 1, op = 1) {
+  return '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) + ')" opacity="' +
+    eflO(op) + '" stroke-linecap="round" stroke-linejoin="round"><rect x="-16" y="-43" width="32" height="54" rx="16" fill="rgba(127,182,217,.18)" stroke="' +
+    C.chalk + '" stroke-width="5"/><path d="M-27 -8 Q-27 28 0 28 Q27 28 27 -8 M0 28 V47 M-22 48 H22" fill="none" stroke="' +
+    C.chalk + '" stroke-width="5"/><path d="M-9 -28 H9 M-9 -14 H9" stroke="' + EFL_BLUE + '" stroke-width="4"/></g>';
+}
+
+function eflPhoto(cx, cy, scale = 1, op = 1, dashed = false) {
+  if (op <= 0.001 || scale <= 0.001) return '';
+  if (dashed) return '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) +
+    ')" opacity="' + eflO(op) + '"><rect x="-90" y="-105" width="180" height="210" fill="none" stroke="' +
+    C.chalk + '" stroke-width="6" stroke-dasharray="14 10"/></g>';
+  let g = '<g transform="translate(' + eflN(cx) + ' ' + eflN(cy) + ') scale(' + eflN(scale) + ')" opacity="' +
+    eflO(op) + '"><rect x="-90" y="-105" width="180" height="210" fill="#f4f0e6" stroke="' + C.chalk +
+    '" stroke-width="6"/><rect x="-72" y="-88" width="144" height="132" fill="#26382f" stroke="' + EFL_BLUE + '" stroke-width="3"/>';
+  g += eflMic(-48, -24, 0.36, 1);
+  for (let i = 0; i < 5; i++) {
+    const ex = 4 + i * 14;
+    g += '<ellipse cx="' + ex + '" cy="-58" rx="6" ry="4" fill="#efe9d8"/><circle cx="' + ex + '" cy="-58" r="2.2" fill="#23392f"/>';
+  }
+  g += '<path d="M17 4 L56 -2 L63 30 L24 37 Z" fill="#efe9d8" stroke="#b2aa96" stroke-width="2"/>' +
+    '<path d="M24 13 L53 8 M26 21 L55 16 M27 29 L47 25" stroke="#7a867d" stroke-width="2"/>' +
+    '<path d="M-2 39 Q12 28 26 25 L36 34 L20 45 L5 48 Z" fill="rgba(240,217,189,.7)" stroke="#efe9d8" stroke-width="3"/>' +
+    '<path d="M-64 67 H64" stroke="#b2aa96" stroke-width="3"/></g>';
+  return g;
+}
+
+function eflMomentPoints(x, y, w, h) {
+  const ix = x + 14, iy = y + 14, iw = w - 28, ih = h - 84;
+  return [[ix + iw * 0.25, iy + ih * 0.45], [ix + iw * 0.65, iy + ih * 0.28], [ix + iw * 0.62, iy + ih * 0.70]];
+}
+
+function eflMoment(x, y, w, h, glow = [0, 0, 0], op = 1) {
+  if (op <= 0.001) return '';
+  const ix = x + 14, iy = y + 14, iw = w - 28, ih = h - 84;
+  const points = eflMomentPoints(x, y, w, h);
+  const micX = points[0][0], micY = points[0][1];
+  const eyesX = points[1][0], eyesY = points[1][1];
+  const handX = points[2][0], handY = points[2][1];
+  let g = '<g opacity="' + eflO(op) + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" fill="#f4f0e6" stroke="' + C.chalk + '" stroke-width="6"/><rect x="' + ix + '" y="' + iy + '" width="' + iw +
+    '" height="' + ih + '" fill="#26382f" stroke="' + EFL_BLUE + '" stroke-width="3"/>';
+  g += eflGlow(micX, micY, 30, 55, glow[0] || 0);
+  g += eflGlow(eyesX, eyesY, 92, 27, glow[1] || 0);
+  g += eflGlow(handX, handY, 62, 52, glow[2] || 0);
+  g += eflMic(micX, micY, 0.72, 1);
+  for (let i = 0; i < 5; i++) {
+    const ex = eyesX + (i - 2) * 22;
+    g += '<ellipse cx="' + eflN(ex) + '" cy="' + eflN(eyesY) + '" rx="9" ry="6" fill="#efe9d8"/>' +
+      '<circle cx="' + eflN(ex) + '" cy="' + eflN(eyesY) + '" r="3" fill="#23392f"/>';
+  }
+  g += '<path d="M' + eflN(handX - 39) + ' ' + eflN(handY - 33) + ' L' + eflN(handX + 36) + ' ' +
+    eflN(handY - 43) + ' L' + eflN(handX + 48) + ' ' + eflN(handY + 29) + ' L' + eflN(handX - 27) +
+    ' ' + eflN(handY + 40) + ' Z" fill="#efe9d8" stroke="#b2aa96" stroke-width="4"/>' +
+    '<path d="M' + eflN(handX - 27) + ' ' + eflN(handY - 16) + ' L' + eflN(handX + 28) + ' ' +
+    eflN(handY - 23) + ' M' + eflN(handX - 24) + ' ' + eflN(handY - 2) + ' L' + eflN(handX + 31) +
+    ' ' + eflN(handY - 9) + ' M' + eflN(handX - 21) + ' ' + eflN(handY + 12) + ' L' + eflN(handX + 8) +
+    ' ' + eflN(handY + 8) + '" stroke="#7a867d" stroke-width="3"/>' +
+    '<path d="M' + eflN(handX - 49) + ' ' + eflN(handY + 42) + ' Q' + eflN(handX - 31) + ' ' +
+    eflN(handY + 10) + ' ' + eflN(handX - 12) + ' ' + eflN(handY + 27) + ' L' + eflN(handX + 7) +
+    ' ' + eflN(handY + 43) + ' L' + eflN(handX + 25) + ' ' + eflN(handY + 30) + ' Q' + eflN(handX + 40) +
+    ' ' + eflN(handY + 25) + ' ' + eflN(handX + 43) + ' ' + eflN(handY + 40) + ' L' + eflN(handX + 9) +
+    ' ' + eflN(handY + 61) + ' L' + eflN(handX - 36) + ' ' + eflN(handY + 60) + ' Z" fill="rgba(240,217,189,.75)" stroke="' +
+    C.chalk + '" stroke-width="4"/><path d="M' + eflN(x + 36) + ' ' + eflN(y + h - 34) + ' H' +
+    eflN(x + w - 36) + '" stroke="#b2aa96" stroke-width="3"/></g>';
+  return g;
+}
+
+function eflPulse(u, start, end) {
+  const inK = eflK(u, start, start + 0.12);
+  const outK = 1 - eflK(u, end - 0.12, end);
+  return Math.max(0, Math.min(inK, outK));
+}
+
+function eflFlash(u, start) {
+  const inK = eflK(u, start, start + 0.1);
+  const outK = 1 - eflK(u, start + 0.4, start + 0.5);
+  return Math.max(0, Math.min(inK, outK));
+}
+
+function eflPaint(svg) {
+  return svg.replace(/font-size="24"/g, 'font-size="26"')
+    .replace(/<text ([^>]*?)fill="([^"]+)"/g, '<text $1style="fill:$2" fill="$2"');
+}
+
+function s1(u) {
+  let g = head(u, '開場', '從骨架長出來') + eflTag(1);
+  for (let i = 0; i < 4; i++) {
+    const k = eflK(u, 0.2 + i * 0.28, 0.85 + i * 0.28);
+    g += eflBlock(EFL_X[i], lerp(170, 260, k), EFL_W[i], 190, EFL_COLORS[i], k);
+  }
+  const glow = eflK(u, 5.5, 6.5);
+  g += eflBlockGlow(140, 260, 215, 190, glow) + eflBlockGlow(1245, 260, 215, 190, glow);
+  const roleK = eflK(u, 1.5, 2.5);
+  g += eflFitLabel(247, 315, '先寫那一刻', 34, C.chalk, roleK, 194);
+  g += eflLabel(580, 315, '為何特別：起因', 34, C.chalk, roleK);
+  g += eflLabel(1020, 315, '為何特別：經過', 34, C.chalk, roleK);
+  g += eflLabel(1352, 315, '結果和感想', 34, C.chalk, roleK);
+  const iconStarts = [2.0, 2.4, 2.8, 3.2];
+  const iconEnds = [2.45, 2.9, 3.35, 3.5];
+  for (let i = 0; i < 4; i++) {
+    const k = eflK(u, iconStarts[i], iconEnds[i]);
+    const y = lerp(235, 390, k);
+    if (i === 0) g += eflPhoto(247, y, 0.4, k);
+    if (i === 1) g += eflHuman(580, y, 0.52, k, true);
+    if (i === 2) g += eflDomino(984, y + 28, 20, 62, 0, k) + eflMirror(1060, y, 0.58, k);
+    if (i === 3) g += eflBell(1325, y, 0.58, 0, k) + eflHeart(1388, y + 8, 0.42, k);
+  }
+  const phrases = [
+    [247, 500, '麥克風一響', 3.5], [247, 542, '腿在發抖', 3.8],
+    [580, 500, '全班只選我', 4.0], [1020, 500, '每天對鏡練', 4.2],
+    [1352, 500, '台下掌聲', 4.4], [1352, 542, '更有自信', 4.6],
+  ];
+  phrases.forEach(([x, y, value, start]) => {
+    g += eflType(value, u, x, y, 30, C.yellow, start, start + 0.45);
+  });
+  g += eflType('長肉', u, 247, 650, 36, C.yellow, 6.5, 7.5);
+  g += eflType('長肉', u, 1352, 650, 36, C.yellow, 6.5, 7.5);
+  g += '<path d="M247 690 Q800 870 1352 690" fill="none" stroke="' + C.yellow +
+    '" stroke-width="4" stroke-dasharray="14 12" opacity="' + eflO(eflK(u, 7.5, 8.5)) + '"/>';
+  return eflPaint(g);
+}
+
+function s2(u) {
+  let g = head(u, '第一段', '那一刻：看到聽到') + eflTag(1);
+  const blockK = eflK(u, 0.2, 0.8);
+  g += eflBlock(140, 205, 300, 64, EFL_BLUE, blockK);
+  g += eflLabel(290, 247, '先寫那一刻', 34, C.chalk, blockK);
+  const points = eflMomentPoints(170, 300, 320, 330);
+  const starts = [1.0, 3.0, 5.0];
+  const targets = [700, 880, 1060];
+  const phrases = ['麥克風一響', '全場安靜', '手心冒汗'];
+  const glows = starts.map((start) => eflPulse(u, start, start + 0.6));
+  g += eflMoment(170, 300, 320, 330, glows, eflK(u, 0.3, 1.0));
+  g += eflThread(600, lerp(600, 1420, eflK(u, 0.8, 1.3)), 720, eflK(u, 0.8, 1.3));
+  for (let i = 0; i < 3; i++) {
+    const start = starts[i], move = eflK(u, start, start + 0.8);
+    if (u > start) {
+      g += eflBead(lerp(points[i][0], targets[i], move), lerp(points[i][1], 720, move), 34, 1);
+    }
+    g += eflType(phrases[i], u, targets[i], 800, 30, C.yellow, start + 0.8, start + 1.15);
+  }
+  const labelK = eflK(u, 7.0, 8.0);
+  g += eflCardFrame(760, 580, 240, 60, labelK, false, EFL_BLUE);
+  g += eflLabel(880, 620, '看到聽到', 34, EFL_BLUE, labelK);
+  g += '<path d="M690 660 Q880 690 1070 660" fill="none" stroke="' + C.yellow +
+    '" stroke-width="5" stroke-linecap="round" opacity="' + eflO(labelK) + '"/>';
+  return eflPaint(g);
+}
+
+function s3(u) {
+  let g = head(u, '第一段', '最後寫心情') + eflTag(1);
+  g += eflMoment(170, 300, 320, 330, [0, 0, 0], 1);
+  g += eflThread(600, 1420, 720, 1);
+  const xs = [700, 880, 1060];
+  ['麥克風一響', '全場安靜', '手心冒汗'].forEach((value, i) => {
+    g += eflBead(xs[i], 720, 34, 1);
+    g += eflLabel(xs[i], 800, value, 30, C.yellow, 1);
+  });
+  g += eflCardFrame(760, 580, 240, 60, 1, false, EFL_BLUE);
+  g += eflLabel(880, 620, '看到聽到', 34, EFL_BLUE, 1);
+  g += '<path d="M690 660 Q880 690 1070 660" fill="none" stroke="' + C.yellow + '" stroke-width="5" stroke-linecap="round"/>';
+  g += eflBow(1260, 720, 1.1, eflK(u, 0.5, 1.5));
+  g += eflLabel(1260, 800, '心快跳出來', 30, C.yellow, eflK(u, 0.9, 1.5));
+  g += eflCardFrame(1180, 580, 160, 60, eflK(u, 1.5, 2.2), false, EFL_ORANGE);
+  g += eflLabel(1260, 620, '心情', 34, EFL_ORANGE, eflK(u, 1.5, 2.2));
+  g += eflLine(1170, 815, 1350, 815, EFL_RED, 5, eflK(u, 2.5, 3.5));
+  g += eflType('aaa＋b', u, 1440, 520, 34, C.yellow, 4.5, 5.5);
+  return eflPaint(g);
+}
+
+function s4(u) {
+  let g = head(u, '中間段', '中間兩段照順序') + eflTag(1);
+  const topK = eflK(u, 0.3, 1.0);
+  const bottomK = eflK(u, 4.5, 5.2);
+  g += eflCardFrame(140, 290, 280, 56, topK, false, EFL_BLUE);
+  g += eflLabel(280, 329, '為何特別：起因', 34, EFL_BLUE, topK);
+  g += eflThread(200, 960, 400, topK);
+  const topXs = [300, 560, 820];
+  const topStarts = [0.7, 1.5, 2.3];
+  topXs.forEach((x, i) => {
+    const k = eflK(u, topStarts[i], topStarts[i] + 0.65);
+    if (i < 2) g += eflBead(x, 400, 30, k);
+    else g += eflBow(x, 400, 0.75, k);
+  });
+  g += eflType('老師要選人', u, 300, 470, 30, C.yellow, 2.7, 3.0);
+  g += eflType('全班只選我', u, 560, 470, 30, C.yellow, 3.0, 3.3);
+  g += eflType('又高興又緊張', u, 820, 470, 30, C.yellow, 3.3, 3.8);
+
+  g += eflCardFrame(140, 550, 280, 56, bottomK, false, EFL_BLUE);
+  g += eflLabel(280, 589, '為何特別：經過', 34, EFL_BLUE, bottomK);
+  g += eflThread(200, 960, 660, bottomK);
+  const bottomStarts = [4.9, 5.8, 6.7];
+  topXs.forEach((x, i) => {
+    const k = eflK(u, bottomStarts[i], bottomStarts[i] + 0.7);
+    if (i < 2) g += eflBead(x, 660, 30, k);
+    else g += eflBow(x, 660, 0.75, k);
+  });
+  g += eflType('對鏡練習', u, 300, 730, 30, C.yellow, 7.4, 7.7);
+  g += eflType('聲音啞了', u, 560, 730, 30, C.yellow, 7.7, 8.0);
+  g += eflType('不能放棄', u, 820, 730, 30, C.yellow, 8.0, 8.5);
+  g += eflType('開始→接著→後來', u, 1220, 530, 30, EFL_BLUE, 9.0, 10.0);
+  return eflPaint(g);
+}
+
+function s5(u) {
+  let g = head(u, '最後一段', '果 2：回到那一刻') + eflTag(1);
+  g += eflLabel(220, 240, '果 1', 30, C.yellow, 1);
+  g += eflPhoto(220, 330, 0.6, 1);
+  const travel = eflK(u, 1.0, 2.5);
+  if (u > 1.0) {
+    const x = lerp(220, 1150, travel);
+    const y = lerp(330, 380, travel) + Math.sin(Math.PI * travel) * 120;
+    const scale = lerp(0.6, 1.0, travel);
+    g += eflPhoto(x, y, scale, 1);
+  }
+  g += eflType('果 2', u, 1150, 255, 34, C.yellow, 2.1, 2.5);
+  const labelK = eflK(u, 3.0, 3.6);
+  g += eflCardFrame(560, 260, 240, 60, labelK, false, EFL_ORANGE);
+  g += eflLabel(680, 300, '結果和感想', 34, EFL_ORANGE, labelK);
+  g += eflThread(600, 1480, 640, 1);
+  const beadK1 = eflK(u, 4.0, 4.8), beadK2 = eflK(u, 6.0, 6.8);
+  g += eflBead(760, 640, 34, beadK1) + eflBead(980, 640, 34, beadK2);
+  g += eflType('順利唸完', u, 760, 720, 30, C.yellow, 4.4, 4.8);
+  g += eflType('台下掌聲', u, 980, 720, 30, C.yellow, 6.4, 6.8);
+  g += eflLine(1150, 490, 1150, 640, C.yellow, 4, eflK(u, 2.5, 3.2), '10 9');
+  return eflPaint(g);
+}
+
+function s6(u) {
+  let g = head(u, '最後一段', '感想要多一點') + eflTag(1);
+  g += eflThread(160, 1300, 560, 1);
+  const beadXs = [260, 420], bowXs = [660, 900, 1140];
+  const labels = ['順利唸完', '台下掌聲', '更有自信', '學會不放棄', '永遠忘不了'];
+  beadXs.forEach((x, i) => {
+    const k = eflK(u, 0.2 + i * 0.25, 0.8 + i * 0.25);
+    g += eflBead(x, 560, 30, k);
+  });
+  bowXs.forEach((x, i) => {
+    const k = eflK(u, 1.0 + i * 2.0, 1.8 + i * 2.0);
+    g += eflBow(x, 560, 1, k);
+  });
+  const xs = [260, 420, 660, 900, 1140];
+  const textStarts = [0.8, 1.2, 1.8, 3.8, 5.8];
+  labels.forEach((value, i) => {
+    g += eflType(value, u, xs[i], 640, 30, C.yellow, textStarts[i], textStarts[i] + 0.5);
+  });
+  g += eflType('aa＋bbb', u, 800, 760, 40, C.yellow, 6.5, 7.5);
+  const compareK = eflK(u, 7.5, 8.5);
+  g += eflThread(180, 340, 300, compareK * 0.55);
+  [200, 240, 280].forEach((x) => { g += eflBead(x, 300, 14, compareK * 0.55); });
+  g += eflBow(320, 300, 0.5, compareK * 0.55);
+  g += eflLabel(260, 360, 'aaa＋b', 30, C.yellow, compareK * 0.55);
+  return eflPaint(g);
+}
+
+function s7(u) {
+  let g = head(u, '最後一段', '感想有很多種') + eflTag(1);
+  g += eflThread(160, 1300, 640, 1);
+  const usedGlow = eflK(u, 12.0, 13.0);
+  [660, 900, 1140].forEach((x) => { g += eflGlow(x, 640, 74, 54, usedGlow * 0.8); });
+  [260, 420].forEach((x) => { g += eflBead(x, 640, 30, 1); });
+  [660, 900, 1140].forEach((x) => { g += eflBow(x, 640, 1, 1); });
+  const phrases = ['順利唸完', '台下掌聲', '更有自信', '學會不放棄', '永遠忘不了'];
+  const xs = [260, 420, 660, 900, 1140];
+  phrases.forEach((value, i) => { g += eflLabel(xs[i], 720, value, 30, C.yellow, 1); });
+
+  const stampXs = [360, 560, 760, 960, 1160];
+  const stampLabels = ['感想', '感謝', '懷念', '啟示', '影響'];
+  const stampStarts = [0.3, 0.7, 1.1, 1.5, 1.9];
+  stampLabels.forEach((label, i) => {
+    const op = eflK(u, stampStarts[i], stampStarts[i] + 0.55);
+    const active = (i === 2 && u >= 9.5) || (i === 3 && u >= 7.0) || (i === 4 && u >= 4.5);
+    g += eflStamp(stampXs[i], 290, 46, label, op, active, false);
+  });
+
+  const moves = [
+    { label: '影響', from: 1160, to: 660, start: 3.0, end: 4.5 },
+    { label: '啟示', from: 960, to: 900, start: 5.5, end: 7.0 },
+    { label: '懷念', from: 760, to: 1140, start: 8.0, end: 9.5 },
+  ];
+  moves.forEach((m) => {
+    if (u <= m.start) return;
+    const k = eflK(u, m.start, m.end);
+    const x = lerp(m.from, m.to, k), y = lerp(290, 556, k), r = lerp(46, 32, k);
+    // 飛下來的印章字放在印章上方，不蓋住蝴蝶結
+    g += eflStamp(x, y, r, '', 1, false, false);
+    g += eflLabel(x, y - r - 12, m.label, 30, C.yellow, k);
+  });
+
+  const cardK = eflK(u, 0.2, 0.8);
+  g += eflCardFrame(1230, 440, 300, 64, cardK, false, C.chalk);
+  const lensIn = eflK(u, 10.5, 12.0);
+  let lensX = lerp(1450, 1380, lensIn), lensY = lerp(780, 470, lensIn);
+  if (u >= 13.0) {
+    const out = eflK(u, 13.0, 14.0);
+    lensX = lerp(1380, 1450, out);
+    lensY = lerp(470, 780, out);
+  }
+  const lensOp = eflK(u, 10.5, 10.8);
+  g += eflLens(lensX, lensY, 34, lensOp, false, false);
+  g += eflTypeFixed('〈一件特別的事〉', u, 1380, 485, 34, C.chalk, 0.2, 0.8);
+  return eflPaint(g);
+}
+
+function s8(u) {
+  let g = head(u, '最後一段', '全篇主旨在 B') + eflTag(1);
+  const blockK = eflK(u, 0.2, 0.8);
+  g += eflBlock(300, 250, 1000, 240, EFL_ORANGE, blockK);
+  g += eflLabel(405, 295, '結果和感想', 34, EFL_ORANGE, blockK);
+  g += eflTypeFixed('第一次當主持人，讓我變得更有自信。', u, 800, 400, 36, C.yellow, 0.8, 6.0);
+  const sealK = eflK(u, 6.2, 6.6);
+  g += eflSeal(1190, 388, 40, '影響', sealK);
+  g += eflType('全篇主旨藏在 B', u, 800, 600, 34, C.yellow, 7.0, 8.0);
+  return eflPaint(g);
+}
+
+function s9(u) {
+  let g = head(u, '練習', '換你長肉') + eflTag(1);
+  const titleK = eflK(u, 0.2, 0.8);
+  g += eflCardFrame(560, 200, 480, 72, titleK, false, C.chalk);
+  g += eflTypeFixed('〈最有趣的事〉', u, 800, 248, 40, C.yellow, 0.2, 0.8);
+  const blockXs = EFL_X, blockWs = EFL_W;
+  for (let i = 0; i < 4; i++) {
+    const k = eflK(u, 0.6 + i * 0.18, 1.05 + i * 0.18);
+    g += eflBlock(blockXs[i], 290, blockWs[i], 100, EFL_COLORS[i], k, true);
+  }
+  const roleK = eflK(u, 0.6, 2.0);
+  g += eflFitLabel(247, 352, '先寫那一刻', 34, C.chalk, roleK, 194);
+  g += eflLabel(580, 352, '為何有趣：起因', 34, C.chalk, roleK);
+  g += eflLabel(1020, 352, '為何有趣：經過', 34, C.chalk, roleK);
+  g += eflLabel(1352, 352, '結果和感想', 34, C.chalk, roleK);
+
+  const photo1 = eflK(u, 2.5, 3.0);
+  const bead1Starts = [3.0, 3.4, 3.8];
+  const bow1 = eflK(u, 4.2, 4.8);
+  const photo2 = eflK(u, 5.5, 6.0);
+  const bead2Starts = [6.0, 6.4];
+  const bow2Starts = [6.8, 7.2, 7.6];
+
+  const photoFlash = eflFlash(u, 9.0);
+  if (photoFlash > 0.01) g += eflGlow(200, 530, 52, 62, photoFlash * 0.8);
+  g += eflLine(247, 390, 247, lerp(390, 460, photo1), C.blue, 4, photo1, '10 9');
+  g += eflPhoto(200, 530, 0.45, photo1, true);
+  g += eflThread(278, 540, 600, eflK(u, 3.0, 3.3), true);
+  const beadsFlash = eflFlash(u, 9.7);
+  if (beadsFlash > 0.01) [300, 360, 420].forEach((x) => { g += eflGlow(x, 600, 30, 30, beadsFlash * 0.7); });
+  [300, 360, 420].forEach((x, i) => {
+    const k = eflK(u, bead1Starts[i], bead1Starts[i] + 0.35);
+    g += eflBead(x, 600, 22, k, true);
+  });
+  const bowFlash1 = eflFlash(u, 10.4);
+  if (bowFlash1 > 0.01) g += eflGlow(500, 600, 48, 42, bowFlash1 * 0.7);
+  g += eflBow(500, 600, 0.8, eflK(u, 4.2, 4.8), true);
+  g += eflType('看到聽到', u, 360, 680, 30, EFL_BLUE, 4.7, 5.0);
+  g += eflType('心情', u, 500, 680, 30, EFL_ORANGE, 4.9, 5.2);
+
+  const photoFlash2 = eflFlash(u, 11.1);
+  if (photoFlash2 > 0.01) g += eflGlow(1000, 530, 52, 62, photoFlash2 * 0.8);
+  g += eflLine(1352, 390, 1352, lerp(390, 460, photo2), C.blue, 4, photo2, '10 9');
+  g += eflPhoto(1000, 530, 0.45, photo2, true);
+  g += eflThread(1070, 1430, 600, eflK(u, 6.0, 6.3), true);
+  const beadsFlash2 = eflFlash(u, 11.8);
+  if (beadsFlash2 > 0.01) [1100, 1160].forEach((x) => { g += eflGlow(x, 600, 30, 30, beadsFlash2 * 0.7); });
+  [1100, 1160].forEach((x, i) => {
+    const k = eflK(u, bead2Starts[i], bead2Starts[i] + 0.4);
+    g += eflBead(x, 600, 22, k, true);
+  });
+  const bowsFlash2 = eflFlash(u, 12.5);
+  if (bowsFlash2 > 0.01) [1215, 1310, 1405].forEach((x) => { g += eflGlow(x, 600, 44, 40, bowsFlash2 * 0.65); });
+  [1215, 1310, 1405].forEach((x, i) => {
+    const k = eflK(u, bow2Starts[i], bow2Starts[i] + 0.4);
+    g += eflBow(x, 600, 0.5, k, true);
+  });
+  g += eflType('結果', u, 1130, 680, 30, EFL_BLUE, 8.0, 8.4);
+  g += eflType('感想', u, 1320, 680, 30, EFL_ORANGE, 8.2, 8.6);
+
+  const stampFlash = eflFlash(u, 13.2);
+  if (stampFlash > 0.01) [560, 680, 800, 920, 1040].forEach((x) => { g += eflGlow(x, 780, 34, 34, stampFlash * 0.7); });
+  [560, 680, 800, 920, 1040].forEach((x) => { g += eflStamp(x, 780, 30, '', 1, false, true); });
+  return eflPaint(g);
+}

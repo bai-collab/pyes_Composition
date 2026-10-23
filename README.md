@@ -16,6 +16,7 @@
 | 8 | 六上・記敘文（寫人，進階） | 中間每一段，都寫那個重點（審題：範圍與重點、四段各寫什麼：她是誰／為何說她勇敢／感想、中間段從外表個性換成顯出重點的事、用重點挑材料、文題相符） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-01-person-focus-skeleton/) |
 | 9 | 六上・記敘文（寫人，進階） | 舉一件事，證明她勇敢（長肉：中間段三層：主題句／舉例／感覺、記得有一次照開始接著後來、對話三種擺法、先寫 aaa 再寫 b、從〈最感謝的人〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-02-person-focus-layers/) |
 | 10 | 六下・記敘文（寫事，進階） | 先放最特別的那一刻（審題：範圍與重點「特別」、用重點挑一件事、因果式與果因果式：果 1→原因→經過→果 2、四段各寫什麼、文題相符） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-03-event-focus-skeleton/) |
+| 11 | 六下・記敘文（寫事，進階） | 頭尾都回到那一刻（長肉：第一段先寫看到聽到再寫心情、中間照開始接著後來、最後一段回到那一刻、感想多一點 aa＋bbb、感想的種類：影響／啟示／懷念、從〈最有趣的事〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-04-event-focus-layers/) |
 
 ## 怎麼使用
 
