@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="zh-Hant">
+<script>if(/[?&]embed=1\b/.test(location.search))document.documentElement.classList.add('embed')</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>舉一件事，證明她勇敢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap">
+<style>
+/* repo 轉教學動畫網頁｜通用骨架（黑板舞台）。新動畫只改「設定區」與「場景區」。 */
+:root{
+  --board:#23392f; --board-deep:#1a2b23; --frame:#6e4c31;
+  --chalk:#efe9d8; --chalk-dim:#a9b3a6;
+  --yellow:#f2c14e; --orange:#e8875b; --blue:#7fb6d9; --green:#8fd18a; --red:#e66a5c;
+  --font-chalk:"LXGW WenKai TC","Kaiti TC","DFKai-SB","BiauKai",serif;
+  --font-body:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--board-deep);color:var(--chalk)}
+body{margin:0;font-family:var(--font-body)}
+/* ===== 播放器版面公版（研習平台頁同一套規則）=====
+   1) 播放區 .player（標題列＋舞台＋字幕＋控制列）剛好佔一個視窗高；章節、延伸閱讀、出處在下方，往下捲才看到。
+   2) 舞台吃「扣掉標題列、字幕、控制列後的剩餘空間」：.stage-area 是容器查詢容器，.board 用 cqw／cqh 算出 16:9 最大尺寸並置中；
+      木框寬度只用 --bw 變數計入（SVG 本身維持 16:9），不得再用固定像素去扣高度。
+   3) 進度條列可收合（#toggleSeek），預設收起；收起時舞台自動變大。字幕至少預留兩行，段落切換時舞台不跳動。    4) 標註工具（手寫筆跡＋文字，.annoLayer 掛在 .board 內）：「標註工具 ▸／▾」（#toggleInk）收合一列工具列，預設收起；標註以段落為單位、只存在記憶體；?embed=1 不啟用。 */
+.wrap{max-width:1600px;margin:0 auto;padding-inline:16px;padding-bottom:28px;display:flex;flex-direction:column;gap:14px}
+.player{box-sizing:border-box;height:100vh;height:100dvh;padding-block:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.player>header,.player>.controls{flex:none}
+.theater{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:10px;align-items:center}
+.theater .caption{align-self:stretch;flex:none}
+.stage-area{flex:1 1 0;min-height:0;align-self:stretch;display:flex;align-items:center;justify-content:center;container-type:size}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 16px}
+h1{font-family:var(--font-chalk);font-weight:700;font-size:clamp(1.3rem,2.6vw,1.9rem);margin:0}
+.sub{color:var(--chalk-dim);font-size:.95rem;margin:0}
+.board{--bw:14px;box-sizing:border-box;border:var(--bw) solid var(--frame);border-radius:6px;background:var(--board);box-shadow:inset 0 0 60px rgba(0,0,0,.45);flex:none;max-width:100%;
+  width:100%;width:min(100cqw, calc((100cqh - 2 * var(--bw)) * 16 / 9 + 2 * var(--bw)))}
+/* 全螢幕：theater 本身就是全螢幕元素，沿用同一套規則（舞台吃剩餘空間、字幕預留兩行；字幕字級與行高用 vh／vw） */
+.theater:fullscreen{background:var(--board-deep);gap:1.5vh;padding:2vh 2vw;box-sizing:border-box}
+.theater:fullscreen .caption{text-align:center;font-size:min(2.4vw,3.2vh);line-height:1.4;min-height:2.8em;max-width:100%}
+@media (max-width:640px){.board{--bw:8px}}
+/* 內嵌（?embed=1）：只留舞台與字幕，尺寸全用 vh，播放由外層 postMessage 控制（版面公版不套用） */
+html.embed body{padding:0;overflow:hidden}
+html.embed header,html.embed .controls,html.embed .chapters,html.embed .works,html.embed .note{display:none}
+html.embed .wrap{max-width:none;gap:0;padding:0}
+html.embed .player,html.embed .stage-area{display:contents}
+html.embed .stage-area{container-type:normal}
+html.embed .theater{flex:none;gap:1vh}
+html.embed .board{width:min(100%, calc(89vh * 16 / 9));border-width:1.4vh}
+html.embed .caption{font-size:2.6vh;line-height:1.4;min-height:3.8vh;text-align:center;padding:0 1vh;margin:0}
+.board svg{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.caption{font-family:var(--font-chalk);font-size:clamp(1.05rem,2.2vw,1.45rem);line-height:1.5;min-height:3em;margin:0}
+.caption b{color:var(--yellow);font-weight:700}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+#fs{margin-left:auto}
+button{font:inherit;font-size:.95rem;color:var(--chalk);background:transparent;border:1.5px solid var(--chalk-dim);border-radius:999px;padding:.4em 1em;cursor:pointer}
+button:hover{border-color:var(--yellow);color:var(--yellow)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#play{min-width:5.5em;border-color:var(--yellow);color:var(--yellow)}
+#toggleSeek[aria-expanded="true"]{border-color:var(--yellow);color:var(--yellow)}
+/* 進度條列：獨佔 .controls 的第二列；黃色 6px 粗軌道畫在 #seekMarks（細線＝段落分界），上面疊透明的 range 與 16px 圓拇指 */
+.seekrow{display:flex;flex:1 0 100%;align-items:center;gap:12px}
+.seekrow[hidden]{display:none}
+#seekWrap{position:relative;flex:1 1 200px;min-width:120px;height:20px}
+#scrub{position:relative;z-index:1;-webkit-appearance:none;appearance:none;display:block;width:100%;height:20px;padding:0;margin:0;border:0;border-radius:0;background:transparent;cursor:pointer}
+#scrub::-webkit-slider-runnable-track{height:6px;background:transparent}
+#scrub::-moz-range-track{height:6px;border:0;background:transparent}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;margin-top:-5px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#scrub::-moz-range-thumb{box-sizing:border-box;width:16px;height:16px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#seekMarks{position:absolute;left:8px;right:8px;top:7px;height:6px;border-radius:3px;overflow:hidden;background:var(--yellow);pointer-events:none}
+#seekMarks i{position:absolute;top:0;bottom:0;width:1px;background:var(--board-deep)}
+#time{flex:none;width:8.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--chalk-dim);font-size:.85rem}
+/* 標註工具（手寫筆跡＋文字）：標註層蓋在舞台上，平常 pointer-events:none，只有畫筆／文字啟用時才攔截；?embed=1 不建立 */
+.board{position:relative}
+.annoLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2;--u:1px}
+.annoLayer canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;background:none;border-radius:0;aspect-ratio:auto;box-shadow:none}
+.annoLayer canvas.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.annoLayer canvas.on.text-mode{cursor:text}
+.annoLabels{position:absolute;inset:0;pointer-events:none}
+.annoLabel{position:absolute;transform:translateY(-50%);font-family:var(--font-chalk,serif);font-size:calc(34 * var(--u));font-weight:700;line-height:1.25;padding:calc(4 * var(--u)) calc(14 * var(--u));background:rgba(26,43,35,.82);border:calc(2 * var(--u)) solid;border-radius:calc(10 * var(--u));white-space:pre-wrap;max-width:56%;word-break:break-word}
+.annoInput{position:absolute;transform:translateY(-50%);box-sizing:border-box;width:max(180px,32%);max-width:92%;font-family:var(--font-chalk,serif);font-size:max(16px,calc(30 * var(--u)));font-weight:700;pointer-events:auto;background:rgba(26,43,35,.95);border:2px dashed var(--yellow,#f2c14e);color:var(--chalk,#efe9d8)}
+.annoInput[hidden]{display:none}
+#toggleInk[aria-expanded="true"]{border-color:var(--yellow,#f2c14e);color:var(--yellow,#f2c14e)}
+/* 工具列：獨佔 .controls 的一整列 */
+.annoRow{display:flex;flex:1 0 100%;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.annoRow[hidden]{display:none}
+.annoSwatches{display:inline-flex;align-items:center;gap:8px}
+.annoSwatch{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid transparent}
+.annoSwatch[aria-pressed="true"]{border-color:#fff;outline:2px solid var(--board-deep,var(--bg,#1a2b23))}
+.annoRow button[aria-pressed="true"]:not(.annoSwatch){border-color:var(--yellow,#f2c14e);color:var(--board-deep,#1a2b23);background:var(--yellow,#f2c14e)}
+.chapters{display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0;list-style:none}
+.chapters button{font-size:.85rem;padding:.25em .8em;border-color:rgba(239,233,216,.25);color:var(--chalk-dim)}
+.chapters button[aria-current="true"]{border-color:var(--yellow);color:var(--yellow)}
+.note{color:var(--chalk-dim);font-size:.85rem;margin:0}
+.works h2{font-family:var(--font-chalk);font-size:1.15rem;margin:0 0 6px;color:var(--yellow)}
+.works ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 16px}
+.works a{color:var(--chalk);text-underline-offset:3px}
+.works span{display:block;color:var(--chalk-dim);font-size:.85rem}
+.t-chalk{font-family:var(--font-chalk);fill:var(--chalk)}
+.t-body{font-family:var(--font-body);fill:var(--chalk)}
+</style>
+
+<div class="wrap">
+  <section class="player" aria-label="動畫播放器">
+    <header>
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </header>
+    <div class="theater" id="theater">
+      <div class="stage-area"><div class="board"><svg id="stage" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" role="img"></svg></div></div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+    </div>
+    <div class="controls">
+      <button id="prev" type="button">上一段</button>
+      <button id="play" type="button">播放</button>
+      <button id="next" type="button">下一段</button>
+      <button id="toggleSeek" type="button" aria-expanded="false" aria-controls="seekrow">進度條 ▸</button>
+      <button id="fs" type="button">全螢幕</button>
+      <div class="seekrow" id="seekrow" hidden>
+        <div id="seekWrap">
+          <input id="scrub" type="range" min="0" max="1" step="0.05" value="0" aria-label="時間軸">
+          <div id="seekMarks" aria-hidden="true"></div>
+        </div>
+        <span id="time"></span>
+      </div>
+    </div>
+  </section>
+  <ul class="chapters" id="chapters"></ul>
+  <section class="works" aria-labelledby="works-h"><h2 id="works-h">延伸閱讀</h2><ul id="works"></ul></section>
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+'use strict';
+// ===================== 設定區（段落與字幕由 timing.json 注入）=====================
+// ===== 教學動畫共用圖形（不得與範本播放器或工具重名）=====
+const C = { yellow: 'var(--yellow)', blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', orange: 'var(--orange)', purple: '#b9a3e3', chalk: 'var(--chalk)', dim: 'var(--chalk-dim)', deep: 'var(--board-deep)' };
+function arrow(x1, y1, x2, y2, color = C.dim, op = 1, both = false, k = 1, dash = '') {
+  const ex = lerp(x1, x2, k), ey = lerp(y1, y2, k);
+  const ang = Math.atan2(y2 - y1, x2 - x1), h = 16;
+  const head = (x, y, a) => `<polygon points="${x},${y} ${x - h * Math.cos(a - 0.45)},${y - h * Math.sin(a - 0.45)} ${x - h * Math.cos(a + 0.45)},${y - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  let g = `<g opacity="${op}"><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${color}" stroke-width="4" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  if (k >= 0.99) { g += head(x2, y2, ang); if (both) g += head(x1, y1, ang + Math.PI); }
+  return g + '</g>';
+}
+// 曲線箭頭：二次貝茲，k 為繪製進度（以 dasharray 截斷）
+function curve(x1, y1, cx, cy, x2, y2, color = C.dim, op = 1, k = 1, label = '', lx = 0, ly = 0) {
+  const len = 1400;
+  let g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="10 9" pathLength="${len}" style="stroke-dashoffset:0"/>`;
+  if (k < 0.99) g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" pathLength="${len}" stroke-dasharray="${(len * k).toFixed(1)} ${len}"/>`;
+  else {
+    const a = Math.atan2(y2 - cy, x2 - cx), h = 16;
+    g += `<polygon points="${x2},${y2} ${x2 - h * Math.cos(a - 0.45)},${y2 - h * Math.sin(a - 0.45)} ${x2 - h * Math.cos(a + 0.45)},${y2 - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  }
+  if (label) g += txt(lx, ly, label, { c: 't-body', s: 24, f: color, o: k >= 0.99 ? 1 : 0 });
+  return g + '</g>';
+}
+function hframe(x, y, w, h, op, label = '', color = C.yellow, glow = 0, size = 32) {
+  return `<g opacity="${op}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="rgba(242,193,78,${0.04 + 0.08 * glow})" stroke="${color}" stroke-width="${4 + 2 * glow}" stroke-dasharray="16 12"/>` +
+    (label ? txt(x + 26, y + 44, label, { s: size, w: 1, f: color }) : '') + '</g>';
+}
+function card(x, y, W, h, op, lines, color = C.chalk) {
+  // lines: [[文字, 字級, 顏色, 粗體, 字型類別, 置中]]，依序往下排
+  let g = `<g opacity="${op}">${box(x, y, W, h, color, 1, C.deep)}`;
+  let yy = y + 14;
+  for (const [s, size = 28, f = C.chalk, bold = false, c = 't-chalk', cx = false] of lines) {
+    yy += size * 1.25;
+    g += txt(cx ? x + W / 2 : x + 24, yy, s, { s: size, f, w: bold, c, a: cx ? 'middle' : 'start' });
+    yy += size * 0.3;
+  }
+  return g + '</g>';
+}
+function ccard(x, y, w, h, op, title, sub, color = C.chalk, tsize = 32, ssize = 24) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}` +
+    txt(x + w / 2, y + h / 2 + (sub ? -6 : tsize * 0.35), title, { a: 'middle', s: tsize, w: 1, f: color }) +
+    (sub ? txt(x + w / 2, y + h / 2 + ssize + 8, sub, { a: 'middle', c: 't-body', s: ssize, f: C.dim }) : '') + '</g>';
+}
+function chip(x, y, w, label, op, color = C.chalk, size = 26, h = 58) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}${txt(x + w / 2, y + h / 2 + size * 0.36, label, { a: 'middle', s: size, f: color })}</g>`;
+}
+function tick(x, y, s, op, color = C.green) {
+  return `<path d="M${x - s} ${y} L${x - s / 3} ${y + s * 0.7} L${x + s} ${y - s * 0.8}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"/>`;
+}
+function cross(x, y, s, op, color = C.red) {
+  return `<g opacity="${op}" stroke="${color}" stroke-width="12" stroke-linecap="round"><line x1="${x - s}" y1="${y - s}" x2="${x + s}" y2="${y + s}"/><line x1="${x + s}" y1="${y - s}" x2="${x - s}" y2="${y + s}"/></g>`;
+}
+function dot(x, y, r, color, op = 1) { return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${op}"/>`; }
+function underline(x1, x2, y, k, color = C.yellow, op = 1) { return `<line x1="${x1}" y1="${y}" x2="${lerp(x1, x2, k)}" y2="${y}" stroke="${color}" stroke-width="4" opacity="${op}"/>`; }
+// 依進度逐一出現：第 i 個元素在 t0 + i*step 開始、花 dur 秒
+const stagger = (u, t0, i, step = 0.6, dur = 0.7) => ease(P(u, t0 + i * step, t0 + i * step + dur));
+
+// 六年級記敘文（寫人，進階）第二集：場景只由 u（段內秒數）決定。
+const META = {
+  title: '舉一件事，證明她勇敢',
+  subtitle: '9 段・約 2 分鐘・六年級記敘文（寫人）第二集',
+  ariaLabel: '用積木、珠子、蝴蝶結、小旗、小火車、對話泡泡與放大鏡，呈現中間段如何先說主題、舉例並寫感覺。',
+  note: '出處：楊裕貿研習講義；記人學習單。「積木、工作牌、珠子、蝴蝶結、小旗、小火車、對話泡泡、放大鏡、星星」是視覺比喻；示範句、短語與人物（姊姊）依講義結構自編。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換段落，F 鍵全螢幕。畫面只由時間決定。',
+  works: [],
+};
+
+const PFL_BLUE = '#7fb6d9';
+const PFL_ORANGE = '#e8875b';
+const PFL_RED = '#d9605a';
+const PFL_SKIN = '#f0d9bd';
+const PFL_BROWN = '#66513e';
+const PFL_X = [140, 365, 805, 1245];
+const PFL_W = [215, 430, 430, 215];
+const PFL_COLORS = [PFL_BLUE, PFL_BLUE, PFL_BLUE, PFL_ORANGE];
+const pflK = (u, a, b) => ease(P(u, a, b));
+const pflO = (v) => Math.max(0, Math.min(1, Number(v) || 0)).toFixed(3);
+const pflN = (v) => Number(v).toFixed(1);
+
+function pflTag(u) {
+  const op = pflK(u, 0.05, 0.55);
+  return '<g opacity="' + pflO(op) + '">' + box(1376, 60, 164, 60, PFL_ORANGE, 1, C.deep) +
+    txt(1458, 100, '比喻', { a: 'middle', s: 30, w: 1, f: PFL_ORANGE }) + '</g>';
+}
+
+function pflLabel(cx, y, value, size = 30, color = C.chalk, op = 1) {
+  if (op <= 0.001) return '';
+  return txt(cx, y, value, { a: 'middle', s: size, w: 1, f: color, o: op });
+}
+
+function pflTextByChar(value, cx, y, size, color = C.chalk, op = 1, visibleCount = Array.from(value).length) {
+  const chars = Array.from(value);
+  const visible = Math.max(0, Math.min(chars.length, visibleCount));
+  return chars.slice(0, visible).map((ch, i) => txt(cx + (i - (chars.length - 1) / 2) * size, y, ch, {
+    a: 'middle', s: size, w: 1, f: color, o: op,
+  })).join('');
+}
+
+function pflProgressText(value, cx, y, size, color, op, count) {
+  return pflTextByChar(value, cx, y, size, color, op, count);
+}
+
+function pflLine(x1, y1, x2, y2, color = C.chalk, width = 5, op = 1, dash = '') {
+  if (op <= 0.001) return '';
+  return '<line x1="' + pflN(x1) + '" y1="' + pflN(y1) + '" x2="' + pflN(x2) + '" y2="' + pflN(y2) +
+    '" fill="none" stroke="' + color + '" stroke-width="' + width + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + pflO(op) + '"' +
+    (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+}
+
+function pflBlock(x, y, w, h, color, op = 1, dashed = false) {
+  if (op <= 0.001 || w <= 2 || h <= 2) return '';
+  if (dashed) return '<g opacity="' + pflO(op) + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+    '" rx="14" fill="rgba(239,233,216,.012)" stroke="' + color + '" stroke-width="5" stroke-dasharray="14 10"/></g>';
+  let g = '<g opacity="' + pflO(op) + '">';
+  const n = Math.max(2, Math.floor(w / 130));
+  for (let i = 0; i < n; i++) {
+    const cx = x + w * (i + 0.5) / n;
+    g += '<rect x="' + pflN(cx - 20) + '" y="' + pflN(y - 11) + '" width="40" height="13" rx="6" fill="' + color + '"/>';
+  }
+  return g + '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="14" fill="' + color +
+    '" fill-opacity=".22" stroke="' + C.chalk + '" stroke-width="4"/></g>';
+}
+
+function pflCardFrame(x, y, w, h, op = 1, dashed = false, stroke = C.chalk) {
+  if (op <= 0.001) return '';
+  if (dashed) return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="18" fill="rgba(239,233,216,.012)" stroke="' +
+    stroke + '" stroke-width="4" stroke-dasharray="13 9" opacity="' + pflO(op) + '"/>';
+  return '<g opacity="' + pflO(op) + '">' + box(x, y, w, h, stroke, 1, C.deep) + '</g>';
+}
+
+function pflCircle(cx, cy, r, stroke = C.chalk, width = 4, fill = 'none', op = 1, dash = '') {
+  return '<circle cx="' + pflN(cx) + '" cy="' + pflN(cy) + '" r="' + pflN(r) + '" fill="' + fill + '" stroke="' + stroke +
+    '" stroke-width="' + width + '" opacity="' + pflO(op) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+}
+
+function pflLens(cx, cy, r = 45, op = 1, dashed = false, handleUp = false) {
+  if (op <= 0.01 || r <= 1) return '';
+  const dash = dashed ? '11 9' : '';
+  const sy = handleUp ? -1 : 1;
+  return '<g opacity="' + pflO(op) + '"><circle cx="' + pflN(cx) + '" cy="' + pflN(cy) + '" r="' + pflN(r) +
+    '" fill="rgba(242,193,78,.045)" stroke="' + C.yellow + '" stroke-width="8"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+    '<path d="M' + pflN(cx + r * 0.68) + ' ' + pflN(cy + sy * r * 0.68) + ' L' + pflN(cx + r * 1.28) + ' ' + pflN(cy + sy * r * 1.28) +
+    '" stroke="' + C.yellow + '" stroke-width="17" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+    '<path d="M' + pflN(cx + r * 0.8) + ' ' + pflN(cy + sy * r * 0.8) + ' L' + pflN(cx + r * 1.26) + ' ' + pflN(cy + sy * 1.26) +
+    '" stroke="' + C.chalk + '" stroke-width="4" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/></g>';
+}
+
+function pflStar(cx, cy, r, op = 1, dashed = false) {
+  if (op <= 0.01 || r <= 1) return '';
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = i % 2 ? r * 0.46 : r;
+    pts.push(pflN(cx + Math.cos(a) * rr) + ',' + pflN(cy + Math.sin(a) * rr));
+  }
+  return '<polygon points="' + pts.join(' ') + '" fill="' + (dashed ? 'none' : 'rgba(242,193,78,.3)') + '" stroke="' + C.yellow +
+    '" stroke-width="5" stroke-linejoin="round" opacity="' + pflO(op) + '"' + (dashed ? ' stroke-dasharray="8 7"' : '') + '/>';
+}
+
+function pflHeart(cx, cy, scale = 1, op = 1) {
+  if (op <= 0.01 || scale <= 0.01) return '';
+  return '<path transform="translate(' + pflN(cx) + ' ' + pflN(cy) + ') scale(' + pflN(scale) +
+    ')" d="M0 38 C-13 21 -48 -2 -48 -24 C-48 -51 -15 -55 0 -31 C15 -55 48 -51 48 -24 C48 -2 13 21 0 38Z" fill="rgba(232,135,91,.22)" stroke="' +
+    PFL_ORANGE + '" stroke-width="6" opacity="' + pflO(op) + '"/>';
+}
+
+function pflPonytail(cx, cy, scale = 1, op = 1) {
+  return '<g transform="translate(' + pflN(cx) + ' ' + pflN(cy) + ') scale(' + pflN(scale) + ')" opacity="' + pflO(op) +
+    '" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M-39 -13 Q-55 -40 -37 -63 Q-17 -86 13 -73 Q37 -62 37 -34 L53 -19 L38 -7 Q35 21 12 34 L10 52 L-23 52 L-20 31 Q-45 15 -39 -13Z" fill="rgba(240,217,189,.24)" stroke="' + C.chalk + '" stroke-width="5"/>' +
+    '<path d="M-34 -39 Q-18 -78 17 -66 Q39 -58 39 -32 Q15 -48 -2 -45 Q-18 -42 -34 -30Z" fill="' + PFL_BROWN + '" stroke="' + C.chalk + '" stroke-width="4"/>' +
+    '<path d="M36 -49 Q63 -39 57 -15 Q52 5 37 13" fill="none" stroke="' + PFL_BROWN + '" stroke-width="13"/><path d="M40 -45 Q64 -37 57 -16" fill="none" stroke="' + C.chalk + '" stroke-width="3"/>' +
+    '<path d="M-16 54 Q-7 70 5 54 M5 54 Q14 70 24 54" fill="none" stroke="' + C.chalk + '" stroke-width="5"/>' +
+    '<circle cx="17" cy="-15" r="3.5" fill="' + C.chalk + '"/><path d="M28 -2 Q35 2 37 -2" fill="none" stroke="' + PFL_BROWN + '" stroke-width="3"/></g>';
+}
+
+function pflStormWindow(cx, cy, scale = 1, op = 1) {
+  return '<g transform="translate(' + pflN(cx) + ' ' + pflN(cy) + ') scale(' + pflN(scale) + ')" opacity="' + pflO(op) +
+    '" stroke-linecap="round" stroke-linejoin="round"><rect x="-48" y="-46" width="82" height="88" rx="3" fill="rgba(127,182,217,.08)" stroke="' + C.chalk + '" stroke-width="5"/>' +
+    '<path d="M-7 -44 V40 M-46 -1 H32" fill="none" stroke="' + C.chalk + '" stroke-width="4"/>' +
+    '<path d="M8 -32 L-5 -8 L9 -8 L-3 18 L20 -11 L6 -11 L18 -32Z" fill="' + C.yellow + '" stroke="' + C.yellow + '" stroke-width="3"/>' +
+    '<g transform="rotate(-30 52 34)"><path d="M36 27 L8 14 L8 56 L36 41Z" fill="rgba(242,193,78,.35)" stroke="none"/>' +
+    '<rect x="44" y="27" width="30" height="14" rx="4" fill="' + PFL_BLUE + '" stroke="' + C.chalk + '" stroke-width="3"/><rect x="35" y="23" width="10" height="22" rx="2" fill="' + C.chalk + '" stroke="' + C.chalk + '" stroke-width="2"/></g></g>';
+}
+
+function pflClimb(cx, cy, scale = 1, op = 1) {
+  return '<g transform="translate(' + pflN(cx) + ' ' + pflN(cy) + ') scale(' + pflN(scale) + ')" opacity="' + pflO(op) +
+    '" stroke-linecap="round" stroke-linejoin="round"><path d="M-52 48 L-37 -47 L44 -47 L57 48Z" fill="rgba(127,182,217,.08)" stroke="' + C.chalk + '" stroke-width="5"/>' +
+    '<path d="M-25 20 L-11 9 L0 23 M25 -19 L37 -29 M-35 -23 L-27 -31" fill="none" stroke="' + PFL_ORANGE + '" stroke-width="9" stroke-linecap="round"/>' +
+    '<circle cx="-9" cy="-22" r="9" fill="' + PFL_SKIN + '" stroke="' + C.chalk + '" stroke-width="3"/><path d="M-8 -12 L5 4 L-1 20 M2 2 L18 -6 M0 19 L-15 33 M0 19 L15 30" fill="none" stroke="' + C.chalk + '" stroke-width="6" stroke-linecap="round"/>' +
+    '<path d="M-16 36 L18 36" fill="none" stroke="' + C.dim + '" stroke-width="3"/></g>';
+}
+
+function pflBead(cx, cy, r = 30, op = 1, dashed = false) {
+  if (op <= 0.002) return '';
+  const fill = dashed ? 'none' : PFL_BLUE;
+  const dash = dashed ? '8 7' : '';
+  return '<g opacity="' + pflO(op) + '"><circle cx="' + pflN(cx) + '" cy="' + pflN(cy) + '" r="' + pflN(r) + '" fill="' + fill +
+    '" stroke="' + PFL_BLUE + '" stroke-width="4"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' +
+    (dashed ? '' : '<ellipse cx="' + pflN(cx - r * 0.35) + '" cy="' + pflN(cy - r * 0.4) + '" rx="' + pflN(r * 0.25) + '" ry="' + pflN(r * 0.14) +
+      '" fill="#fff" opacity=".55" transform="rotate(-35 ' + pflN(cx - r * 0.35) + ' ' + pflN(cy - r * 0.4) + ')"/>') + '</g>';
+}
+
+function pflBow(cx, cy, sc = 1, op = 1, dashed = false) {
+  if (op <= 0.002 || sc <= 0.01) return '';
+  const w = 64 * sc, h = 43 * sc, knot = 19 * sc;
+  const fill = dashed ? 'none' : PFL_ORANGE, dash = dashed ? ' stroke-dasharray="8 7"' : '';
+  return '<g opacity="' + pflO(op) + '"><polygon points="' + pflN(cx - 7 * sc) + ',' + pflN(cy) + ' ' + pflN(cx - w) + ',' + pflN(cy - h) + ' ' + pflN(cx - w) + ',' + pflN(cy + h) +
+    '" fill="' + fill + '" stroke="' + PFL_ORANGE + '" stroke-width="4" stroke-linejoin="round"' + dash + '/>' +
+    '<polygon points="' + pflN(cx + 7 * sc) + ',' + pflN(cy) + ' ' + pflN(cx + w) + ',' + pflN(cy - h) + ' ' + pflN(cx + w) + ',' + pflN(cy + h) +
+    '" fill="' + fill + '" stroke="' + PFL_ORANGE + '" stroke-width="4" stroke-linejoin="round"' + dash + '/>' +
+    '<circle cx="' + pflN(cx) + '" cy="' + pflN(cy) + '" r="' + pflN(knot) + '" fill="' + (dashed ? 'none' : '#c96a40') + '" stroke="' + PFL_ORANGE +
+    '" stroke-width="4"' + dash + '/></g>';
+}
+
+function pflThread(x1, x2, y, op = 1, dashed = false) {
+  return pflLine(x1, y, x2, y, dashed ? C.dim : C.chalk, 5, op, dashed ? '13 12' : '');
+}
+
+function pflGlow(cx, cy, rx = 105, ry = 90, op = 0.5) {
+  if (op <= 0.001) return '';
+  return '<g opacity="' + pflO(op) + '"><ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" fill="rgba(242,193,78,.13)"/>' +
+    '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + (rx - 18) + '" ry="' + (ry - 15) + '" fill="none" stroke="' + C.yellow + '" stroke-width="5"/></g>';
+}
+
+function pflBlockGlow(x, y, w, h, op = 1) {
+  const pad = 10;
+  const opacity = pflO(Math.min(0.25, Math.max(0, op)));
+  return '<rect x="' + (x - pad) + '" y="' + (y - pad) + '" width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '" rx="18" fill="rgba(242,193,78,.22)" opacity="' + opacity + '"/>';
+}
+
+function pflFlag(x, y, value, op = 1, dashed = false) {
+  if (op <= 0.001) return '';
+  const w = Array.from(value).length * 30 + 30;
+  const top = y - 120;
+  const dash = dashed ? ' stroke-dasharray="13 9"' : '';
+  const fill = dashed ? 'rgba(239,233,216,.012)' : 'rgba(242,193,78,.14)';
+  return '<g opacity="' + pflO(op) + '">' +
+    '<line x1="' + x + '" y1="' + y + '" x2="' + x + '" y2="' + top + '" stroke="' + C.chalk + '" stroke-width="5" stroke-linecap="round"' + (dashed ? ' stroke-dasharray="13 9"' : '') + '/>' +
+    '<rect x="' + (x + 8) + '" y="' + top + '" width="' + w + '" height="56" rx="7" fill="' + fill + '" stroke="' + C.yellow + '" stroke-width="4"' + dash + '/>' +
+    pflLabel(x + 8 + w / 2, top + 38, value, 30, C.yellow, 1) + '</g>';
+}
+
+function pflTrain(x, y, w, h, labels, phrases, lit, op = 1, dashed = false, gap = 40, engine = true, reveal = [1, 1, 1]) {
+  let g = '';
+  const step = w + gap;
+  for (let i = 0; i < 2; i++) {
+    const r = Math.max(0, Math.min(1, reveal[i + 1] ?? 1));
+    g += pflLine(x + i * step + w, y + h / 2, x + (i + 1) * step, y + h / 2, C.chalk, 5, op * r);
+  }
+  if (engine) {
+    const ey = y + h * 0.68;
+    g += '<g opacity="' + pflO(op) + '" fill="none" stroke="' + C.chalk + '" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">' +
+      '<path d="M' + (x - 30) + ' ' + ey + ' V' + (ey - 25) + ' H' + (x - 15) + ' L' + (x - 5) + ' ' + (ey - 12) + ' H' + x + ' V' + ey + ' Z"/>' +
+      '<path d="M' + (x - 22) + ' ' + (ey - 29) + ' V' + (ey - 38) + ' H' + (x - 16) + ' V' + (ey - 29) + '"/>' +
+      '<circle cx="' + (x - 22) + '" cy="' + (ey + 3) + '" r="8" fill="' + C.deep + '"/><circle cx="' + (x - 5) + '" cy="' + (ey + 3) + '" r="8" fill="' + C.deep + '"/></g>';
+  }
+  for (let i = 0; i < 3; i++) {
+    const xx = x + i * step;
+    const r = Math.max(0, Math.min(1, reveal[i] ?? 1));
+    const light = Math.max(0, Math.min(1, lit[i] ?? 0));
+    const strokeOp = dashed ? op * r : op * r * (0.22 + 0.78 * light);
+    const phraseOp = op * r;
+    const stroke = dashed ? PFL_BLUE : C.chalk;
+    const dash = dashed ? ' stroke-dasharray="13 9"' : '';
+    const fill = dashed ? 'rgba(239,233,216,.012)' : 'rgba(26,43,35,.74)';
+    g += '<g opacity="' + pflO(strokeOp) + '"><rect x="' + xx + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="18" fill="' + fill + '" stroke="' + stroke + '" stroke-width="4"' + dash + '/></g>';
+    if (!dashed && labels && labels[i]) g += pflLabel(xx + w / 2, y + Math.min(40, h * 0.38), labels[i], 30, PFL_BLUE, phraseOp);
+    if (phrases && phrases[i]) g += pflLabel(xx + w / 2, y + (labels && labels[i] ? h - 28 : h * 0.62), phrases[i], 30, C.yellow, phraseOp);
+    if (h >= 70) {
+      const wy = y + h + 8;
+      g += '<g opacity="' + pflO(strokeOp) + '">' +
+        pflCircle(xx + w * 0.32, wy, 12, dashed ? PFL_BLUE : C.chalk, 3, dashed ? 'none' : C.deep, 1, dashed ? '7 6' : '') +
+        pflCircle(xx + w * 0.68, wy, 12, dashed ? PFL_BLUE : C.chalk, 3, dashed ? 'none' : C.deep, 1, dashed ? '7 6' : '') + '</g>';
+    }
+  }
+  return g;
+}
+
+function pflMiniCar(x, y, op = 1) {
+  return '<g opacity="' + pflO(op) + '"><rect x="' + x + '" y="' + y + '" width="50" height="30" rx="5" fill="rgba(26,43,35,.75)" stroke="' + PFL_BLUE + '" stroke-width="3"/>' +
+    '<circle cx="' + (x + 12) + '" cy="' + (y + 31) + '" r="4" fill="' + C.deep + '" stroke="' + C.chalk + '" stroke-width="2"/>' +
+    '<circle cx="' + (x + 38) + '" cy="' + (y + 31) + '" r="4" fill="' + C.deep + '" stroke="' + C.chalk + '" stroke-width="2"/></g>';
+}
+
+function pflBubble(x, y, w, h, tailX, tailY, value, op = 1, dashed = false, size = 36) {
+  if (op <= 0.001) return '';
+  const dash = dashed ? ' stroke-dasharray="13 9"' : '';
+  const fill = dashed ? 'rgba(239,233,216,.012)' : C.deep;
+  const mid = x + w * 0.62;
+  const tail = '<path d="M' + (mid - 16) + ' ' + (y + h - 2) + ' L' + tailX + ' ' + tailY + ' L' + (mid + 16) + ' ' + (y + h - 2) +
+    ' Z" fill="' + fill + '" stroke="' + C.chalk + '" stroke-width="4"' + dash + '/>';
+  const body = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="18" fill="' + fill + '" stroke="' + C.chalk + '" stroke-width="4"' + dash + '/>';
+  return '<g opacity="' + pflO(op) + '">' + tail + body +
+    pflLabel(x + w / 2, y + h / 2 + size * 0.35, value, size, dashed ? C.dim : C.chalk, 1) + '</g>';
+}
+
+function pflFlash(u, start) {
+  const inK = pflK(u, start, start + 0.1);
+  const outK = 1 - pflK(u, start + 0.4, start + 0.5);
+  return Math.max(0, Math.min(inK, outK));
+}
+
+function pflPaint(svg) {
+  return svg.replace(/font-size="24"/g, 'font-size="26"')
+    .replace(/<text ([^>]*?)fill="([^"]+)"/g, '<text $1style="fill:$2" fill="$2"');
+}
+
+function pflHeadRole(x, width, y, text, op, size = 34, color = C.chalk) {
+  const left = x - width / 2;
+  return pflCardFrame(left, y, width, 60, op) + pflLabel(x, y + 40, text, size, color, op);
+}
+
+function pflArrowTo(x1, y1, x2, y2, op = 1, color = C.yellow, k = 1) {
+  return arrow(x1, y1, x2, y2, color, op, false, k);
+}
+
+function pflShortArrow(x1, x2, y, op = 1) {
+  if (op <= 0.001) return '';
+  const mid = x2 - 6;
+  return pflLine(x1, y, mid, y, C.yellow, 3, op) +
+    '<path d="M' + (x2 - 10) + ' ' + (y - 6) + ' L' + x2 + ' ' + y + ' L' + (x2 - 10) + ' ' + (y + 6) +
+    '" fill="none" stroke="' + C.yellow + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="' + pflO(op) + '"/>';
+}
+
+function s1(u) {
+  let g = head(u, '開場', '從骨架長出來') + pflTag(u);
+  const glow = pflK(u, 6.0, 7.0);
+  g += pflBlockGlow(365, 260, 430, 190, glow);
+  const roles = ['她是誰', '為何說她勇敢', '為何說她勇敢', '感想'];
+  for (let i = 0; i < 4; i++) {
+    const start = 0.2 + i * 0.34;
+    const k = pflK(u, start, start + 0.78);
+    const y = lerp(-145, 260, k);
+    g += pflBlock(PFL_X[i], y, PFL_W[i], 190, PFL_COLORS[i], k);
+    const roleK = pflK(u, 1.5, 2.5);
+    g += pflLabel(PFL_X[i] + PFL_W[i] / 2, 310, roles[i], 36, C.chalk, roleK);
+  }
+  const iconK = pflK(u, 2.0, 3.5);
+  g += pflPonytail(247, 390, 0.62, iconK) + pflStormWindow(580, 390, 0.72, iconK) +
+    pflClimb(1020, 390, 0.76, iconK) + pflHeart(1352, 390, 0.48, iconK);
+  const phraseK = pflK(u, 3.5, 5.0);
+  g += pflLabel(247, 500, '讀六年級', 30, C.yellow, phraseK);
+  g += pflLabel(247, 542, '綁著馬尾', 30, C.yellow, phraseK);
+  g += pflLabel(580, 500, '颱風夜關窗', 30, C.yellow, phraseK);
+  g += pflLabel(1020, 500, '怕高仍爬到頂', 30, C.yellow, phraseK);
+  g += pflLabel(1352, 500, '我要學她', 30, C.yellow, phraseK);
+  g += pflArrowTo(580, 518, 580, 600, pflK(u, 7.0, 8.0), C.yellow, pflK(u, 7.0, 8.0));
+  g += pflLabel(580, 650, '長肉', 36, C.yellow, pflK(u, 7.0, 8.0));
+  return pflPaint(g);
+}
+
+function s2(u) {
+  let g = head(u, '段內三層', '中間段分三層') + pflTag(u);
+  const titleK = pflK(u, 0.2, 0.8);
+  g += pflBlock(565, 205, 430, 80, PFL_BLUE, titleK);
+  g += pflLabel(780, 255, '為何說她勇敢', 34, C.chalk, titleK);
+  g += pflThread(320, 1280, 560, pflK(u, 0.6, 1.2));
+  const cards = [
+    { x: 480, text: '主題句：她怎樣', start: 1.0, end: 1.8 },
+    { x: 800, text: '舉例：一件事', start: 3.0, end: 3.8 },
+    { x: 1120, text: '感覺', start: 5.0, end: 5.8 },
+  ];
+  const beads = [
+    { x: 480, kind: 'a', start: 1.0, end: 1.8 },
+    { x: 800, kind: 'a', start: 3.0, end: 3.8 },
+    { x: 1120, kind: 'b', start: 5.0, end: 5.8 },
+  ];
+  for (let i = 0; i < 3; i++) {
+    const c = cards[i], b = beads[i], k = pflK(u, b.start, b.end);
+    g += pflCardFrame(c.x - 150, 400, 300, 64, k);
+    g += pflLabel(c.x, 442, c.text, 34, C.chalk, k);
+    g += pflLine(c.x, 464, c.x, 516, C.chalk, 4, k);
+    if (b.kind === 'a') g += pflBead(b.x, 560, 44, k);
+    else g += pflBow(b.x, 560, 1.4, k);
+  }
+  const letterStarts = [7.0, 7.7, 8.2];
+  for (let i = 0; i < 3; i++) {
+    const b = beads[i];
+    g += pflLabel(b.x, 650, b.kind, 36, b.kind === 'a' ? PFL_BLUE : PFL_ORANGE, pflK(u, letterStarts[i], letterStarts[i] + 0.3));
+  }
+  return pflPaint(g);
+}
+
+function s3(u) {
+  let g = head(u, '段內三層', '先說她怎樣') + pflTag(u);
+  const beadK = pflK(u, 0.3, 1.0);
+  g += pflBead(420, 600, 70, beadK);
+  g += pflFlag(420, 530, '膽子很大', pflK(u, 1.5, 3.0));
+  const roleK = pflK(u, 3.0, 3.6);
+  g += pflCardFrame(320, 700, 200, 60, roleK) + pflLabel(420, 739, '主題句', 34, C.chalk, roleK);
+  const cardK = 0.75 * pflK(u, 5.0, 5.6);
+  g += pflCardFrame(860, 400, 600, 160, cardK);
+  const xs = [890, 1070, 1250], texts = ['個性', '舉例', '感覺'];
+  for (let i = 0; i < 3; i++) {
+    const k = pflK(u, 5.6 + i * 0.65, 6.2 + i * 0.65);
+    g += pflCardFrame(xs[i], 440, 160, 80, k, false, i === 2 ? PFL_ORANGE : PFL_BLUE);
+    g += pflLabel(xs[i] + 80, 489, texts[i], 34, i === 2 ? PFL_ORANGE : PFL_BLUE, k);
+  }
+  g += pflShortArrow(1053, 1067, 480, pflK(u, 6.2, 6.8));
+  g += pflShortArrow(1233, 1247, 480, pflK(u, 6.85, 7.45));
+  return pflPaint(g);
+}
+
+function s4(u) {
+  let g = head(u, '段內三層', '舉一件事') + pflTag(u);
+  g += pflThread(140, 400, 600, pflK(u, 0.2, 1.2));
+  g += pflBead(220, 600, 30, pflK(u, 0.2, 0.8));
+  g += pflFlag(220, 570, '膽子很大', pflK(u, 0.2, 0.8));
+  g += pflBead(370, 600, 30, pflK(u, 0.5, 1.0));
+  const trainK = pflK(u, 2.0, 3.5);
+  g += pflLabel(860, 470, '記得有一次', 34, C.yellow, pflK(u, 2.5, 3.2));
+  g += pflTrain(430, 520, 260, 120, ['開始', '接著', '後來'], ['颱風夜停電', '窗戶砰砰響', '她去關好窗'],
+    [pflK(u, 4.0, 4.6), pflK(u, 6.0, 6.6), pflK(u, 8.0, 8.6)], trainK, false, 40, true);
+  return pflPaint(g);
+}
+
+function s5(u) {
+  let g = head(u, '段內三層', '讓她開口說話') + pflTag(u);
+  g += pflThread(140, 400, 600, 1);
+  g += pflBead(220, 600, 30, 1) + pflFlag(220, 570, '膽子很大', 1);
+  g += pflBead(370, 600, 30, 1);
+  g += pflTrain(430, 520, 260, 120, ['開始', '接著', '後來'], ['颱風夜停電', '窗戶砰砰響', '她去關好窗'], [1, 1, 1], 1, false, 40, true);
+  g += pflBubble(1080, 330, 220, 100, 1160, 520, '不怕！', pflK(u, 0.5, 1.5), false, 36);
+  const sentence = '姊姊說：「不怕！」';
+  const chars = Array.from(sentence);
+  const shown = Math.min(chars.length, Math.floor(pflK(u, 3.0, 5.5) * chars.length) + 1);
+  g += pflProgressText(sentence, 800, 730, 36, C.yellow, pflK(u, 2.9, 3.1), shown);
+  const cardXs = [400, 680, 960], centers = [520, 800, 1080];
+  const labels = ['人稱在前', '說的話在前', '說的話在兩頭'];
+  const highlight = pflK(u, 7.5, 8.5);
+  for (let i = 0; i < 3; i++) {
+    const stroke = i === 0 && highlight > 0.001 ? C.yellow : C.chalk;
+    const cardK = pflK(u, 6.0 + i * 0.3, 6.5 + i * 0.3);
+    g += pflCardFrame(cardXs[i], 776, 240, 56, cardK, false, stroke);
+    g += pflLabel(centers[i], 812, labels[i], 34, C.chalk, cardK);
+  }
+  g += underline(600, 784, 748, pflK(u, 7.5, 8.5), C.yellow);
+  g += pflArrowTo(540, 774, 600, 748, pflK(u, 7.5, 8.5), C.yellow, pflK(u, 7.5, 8.5));
+  return pflPaint(g);
+}
+
+function s6(u) {
+  let g = head(u, '段內三層', '最後寫感覺') + pflTag(u);
+  g += pflThread(200, 1380, 560, pflK(u, 0.2, 1.0));
+  g += pflBead(300, 560, 30, pflK(u, 0.2, 0.8));
+  g += pflFlag(300, 530, '膽子很大', pflK(u, 0.2, 0.8));
+  g += pflBead(520, 560, 30, pflK(u, 0.5, 1.0));
+  const miniK = pflK(u, 0.5, 1.0);
+  for (const x of [465, 520, 575]) g += pflMiniCar(x, 480, miniK);
+  const bowK = pflK(u, 1.0, 2.5);
+  g += pflBow(900, 560, 1.6, bowK);
+  const phrase = '好勇敢', phraseCount = Math.floor(pflK(u, 1.0, 2.5) * Array.from(phrase).length) + 1;
+  g += pflProgressText(phrase, 900, 660, 30, C.yellow, pflK(u, 1.0, 1.2), Math.min(3, phraseCount));
+  const lensK = pflK(u, 3.0, 4.5);
+  const moveOut = pflK(u, 7.5, 8.5);
+  const lensX = lerp(lerp(1300, 930, lensK), 1280, moveOut);
+  const lensY = lerp(lerp(300, 650, lensK), 760, moveOut);
+  g += pflLens(lensX, lensY, 46, pflK(u, 3.0, 3.3), false, false);
+  const underlineK = pflK(u, 4.5, 5.0);
+  g += underline(870, 930, 670, underlineK, C.yellow);
+  g += pflStar(900, 455, 26, pflK(u, 4.5, 5.0));
+  const focusK = pflK(u, 6.0, 7.0);
+  g += pflLabel(1180, 440, '主旨藏在 b', 34, PFL_ORANGE, focusK);
+  g += pflArrowTo(1170, 485, 1000, 535, focusK, PFL_ORANGE, focusK);
+  return pflPaint(g);
+}
+
+function s7(u) {
+  let g = head(u, '長肉', '第三段也這樣長') + pflTag(u);
+  const panelXs = [100, 820];
+  for (const x of panelXs) {
+    const frameK = pflK(u, 0.1, 1.0);
+    g += pflCardFrame(x, 220, 680, 580, frameK);
+    g += pflHeadRole(x + 340, 280, 240, '為何說她勇敢', frameK, 34);
+  }
+  for (const x of panelXs) g += pflLine(x + 70, 430, x + 70, 700, C.chalk, 4, pflK(u, 0.3, 1.0));
+  const leftX = 100, rightX = 820;
+  const leftTop = pflK(u, 0.3, 1.0), leftTrain = pflK(u, 0.8, 1.6);
+  g += pflBead(leftX + 70, 430, 26, leftTop) + pflFlag(leftX + 70, 430, '膽子很大', leftTop);
+  g += pflBead(leftX + 70, 545, 26, leftTrain);
+  g += pflLine(leftX + 96, 545, leftX + 115, 545, C.chalk, 4, leftTrain);
+  g += pflTrain(leftX + 115, 500, 175, 90, ['', '', ''], ['颱風夜停電', '窗戶砰砰響', '她去關好窗'], [1, 1, 1], leftTrain, false, 10, false);
+  g += pflBubble(leftX + 500, 430, 110, 50, leftX + 560, 500, '不怕！', pflK(u, 1.6, 2.3), false, 30);
+  const leftBow = pflK(u, 2.0, 3.0);
+  g += pflBow(leftX + 70, 700, 0.9, leftBow);
+  g += pflLabel(leftX + 210, 711, '好勇敢', 30, PFL_ORANGE, leftBow);
+
+  const rightTop = pflK(u, 4.0, 5.5);
+  g += pflBead(rightX + 70, 430, 26, rightTop) + pflFlag(rightX + 70, 430, '怕高不放棄', rightTop);
+  g += pflBead(rightX + 70, 545, 26, pflK(u, 6.5, 7.2));
+  const rightReveal = [pflK(u, 6.5, 7.2), pflK(u, 8.0, 8.7), pflK(u, 9.5, 10.2)];
+  g += pflLine(rightX + 96, 545, rightX + 115, 545, C.chalk, 4, rightReveal[0]);
+  g += pflTrain(rightX + 115, 500, 175, 90, ['', '', ''], ['手一直發抖', '一步一步爬', '爬到最高點'], rightReveal, 1, false, 10, false, rightReveal);
+  const rightBow = pflK(u, 11.0, 12.0);
+  g += pflBow(rightX + 70, 700, 0.9, rightBow);
+  g += pflLabel(rightX + 210, 711, '好佩服她', 30, PFL_ORANGE, rightBow);
+  return pflPaint(g);
+}
+
+function s8(u) {
+  let g = head(u, '檢查', '數一數 a 和 b') + pflTag(u);
+  const phrases = ['（膽子很大）', '（颱風夜停電）', '（說不怕去關窗）', '（覺得她好勇敢）'];
+  const centers = [395, 630, 895, 1175];
+  const starts = [0.5, 1.8, 3.1, 4.4];
+  for (let i = 0; i < phrases.length; i++) {
+    const k = pflK(u, starts[i], starts[i] + 0.7);
+    g += pflLabel(centers[i], 420, phrases[i], 30, C.chalk, k);
+  }
+  const letterK = pflK(u, 6.0, 7.5);
+  for (let i = 0; i < 4; i++) {
+    const color = i === 3 ? PFL_ORANGE : PFL_BLUE;
+    const letter = i === 3 ? 'b' : 'a';
+    const k = pflK(u, 6.0 + i * 0.25, 6.6 + i * 0.25);
+    g += pflLabel(centers[i], 500, letter, 40, color, k);
+  }
+  g += underline(centers[3] - 120, centers[3] + 120, 438, letterK, PFL_ORANGE);
+  g += pflLabel(800, 620, '先寫 aaa 再寫 b', 34, C.yellow, pflK(u, 8.5, 9.5));
+  const compareK = pflK(u, 10.5, 11.5);
+  g += pflBlock(1150, 700, 120, 70, PFL_ORANGE, compareK);
+  g += pflLabel(1360, 745, 'aa＋bbb', 30, C.chalk, compareK);
+  return pflPaint(g);
+}
+
+function s9(u) {
+  let g = head(u, '練習', '換你長肉') + pflTag(u);
+  const titleK = pflK(u, 0.2, 0.8);
+  g += pflCardFrame(560, 200, 480, 72, titleK);
+  g += pflLabel(800, 249, '〈最感謝的人〉', 40, C.yellow, titleK);
+  for (let i = 0; i < 4; i++) {
+    const k = pflK(u, 0.6 + i * 0.16, 1.3 + i * 0.16);
+    g += pflBlock(PFL_X[i], 300, PFL_W[i], 110, PFL_COLORS[i], k, true);
+    g += pflLabel(PFL_X[i] + PFL_W[i] / 2, 365, ['他是誰', '為何最感謝 ①', '為何最感謝 ②', '感想'][i], 34, C.chalk, k);
+  }
+  const arrowK = pflK(u, 2.5, 3.0);
+  g += pflLine(580, 410, 580, 470, C.dim, 4, arrowK, '13 9');
+  const flagK = pflK(u, 3.0, 4.1);
+  g += pflFlag(300, 640, '    ', flagK, true);
+  g += pflLabel(300, 700, '主題句', 30, C.dim, pflK(u, 3.6, 4.3));
+  const trainK = pflK(u, 4.4, 5.5);
+  g += pflTrain(480, 560, 100, 70, ['', '', ''], ['', '', ''], [0, 0, 0], trainK, true, 20, false);
+  g += pflLabel(650, 700, '記得有一次', 30, C.dim, pflK(u, 5.1, 5.8));
+  const bubbleK = pflK(u, 5.8, 6.8);
+  g += pflBubble(860, 480, 130, 70, 925, 560, '', bubbleK, true, 30);
+  g += pflLabel(925, 700, '說的話', 30, C.dim, pflK(u, 6.5, 7.2));
+  const bowK = pflK(u, 7.1, 8.1);
+  g += pflBow(1120, 600, 1.2, bowK, true);
+  g += pflLabel(1120, 700, '感覺', 30, C.dim, pflK(u, 7.8, 8.5));
+  const flashes = [10.0, 11.0, 12.0, 13.0].map((start) => pflFlash(u, start));
+  const flagFlash = flashes[0], trainFlash = flashes[1], bubbleFlash = flashes[2], bowFlash = flashes[3];
+  g += '<rect x="312" y="524" width="142" height="48" rx="7" fill="rgba(242,193,78,' + (0.32 * flagFlash) + ')"/>';
+  g += '<g opacity="' + pflO(trainFlash) + '"><rect x="484" y="564" width="92" height="62" rx="14" fill="rgba(242,193,78,.32)"/>' +
+    '<rect x="604" y="564" width="92" height="62" rx="14" fill="rgba(242,193,78,.32)"/><rect x="724" y="564" width="92" height="62" rx="14" fill="rgba(242,193,78,.32)"/></g>';
+  g += '<rect x="864" y="484" width="122" height="62" rx="14" fill="rgba(242,193,78,' + (0.32 * bubbleFlash) + ')"/>';
+  g += '<g opacity="' + pflO(bowFlash) + '"><ellipse cx="1120" cy="600" rx="70" ry="45" fill="rgba(242,193,78,.32)"/></g>';
+  return pflPaint(g);
+}
+
+
+const SEGS = [
+  { len: 10, grp: "開場", name: "從骨架長出來", scene: s1,
+    cap: "上一集排好了〈一個勇敢的人〉的骨架。這一集替中間段「為何說她勇敢」<b>長肉</b>。" },
+  { len: 14, grp: "段內三層", name: "中間段分三層", scene: s2,
+    cap: "中間段分三層：先<b>說她怎樣</b>，再<b>舉一件事</b>，最後<b>寫感覺</b>。前兩層是 a，最後是 b。（珠子、蝴蝶結是比喻）" },
+  { len: 12, grp: "段內三層", name: "先說她怎樣", scene: s3,
+    cap: "第一句是<b>主題句</b>，先說姊姊怎樣：膽子很大。講義寫人也是先寫個性，再舉例，最後寫感覺。" },
+  { len: 14, grp: "段內三層", name: "舉一件事", scene: s4,
+    cap: "接著用「<b>記得有一次</b>」舉一件事，照<b>開始、接著、後來</b>寫完整。（火車是比喻，事情是自編的）" },
+  { len: 12, grp: "段內三層", name: "讓她開口說話", scene: s5,
+    cap: "事情裡可以寫她說的話。對話有三種擺法：<b>人稱在前</b>、<b>說的話在前</b>、<b>說的話在兩頭</b>。這句是人稱在前。" },
+  { len: 12, grp: "段內三層", name: "最後寫感覺", scene: s6,
+    cap: "最後寫<b>感覺</b>：覺得她好勇敢。這一段的主旨，就藏在這個 b 裡。" },
+  { len: 16, grp: "長肉", name: "第三段也這樣長", scene: s7,
+    cap: "第三段也一樣：先說她怕高卻不放棄，再舉攀岩那一次，最後寫我好佩服她。" },
+  { len: 14, grp: "檢查", name: "數一數 a 和 b", scene: s8,
+    cap: "用句號數一數：前三句寫真實的事是 <b>a</b>，最後一句寫感覺是 <b>b</b>，<b>先寫 aaa 再寫 b</b>。感想段就反過來，b 比較多。" },
+  { len: 16, grp: "練習", name: "換你長肉", scene: s9,
+    cap: "換你替〈最感謝的人〉長肉：先寫主題句，再用「記得有一次」舉一件事，可以寫他說的話，最後寫感覺。" },
+];
+
+// ===================== 工具（通常不用改）=====================
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const P = (u, a, b) => clamp((u - a) / (b - a), 0, 1);           // u 在 [a,b] 的進度 0–1
+const ease = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const lerp = (a, b, k) => a + (b - a) * k;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); } // 固定種子亂數
+function txt(x, y, s, o = {}) {
+  const a = o.a || 'start', size = o.s || 32, fill = o.f || 'var(--chalk)', op = o.o ?? 1, w = o.w ? 700 : 400, cls = o.c || 't-chalk';
+  return `<text x="${x}" y="${y}" class="${cls}" font-size="${size}" font-weight="${w}" text-anchor="${a}" fill="${fill}" opacity="${op}">${esc(s)}</text>`;
+}
+function box(x, y, w, h, stroke = 'var(--chalk)', op = 1, fill = 'none') {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="3" opacity="${op}"/>`;
+}
+function head(u, kicker, title) {
+  const o = ease(P(u, 0, 0.8));
+  return txt(80, 90, kicker, { c: 't-body', s: 24, f: 'var(--chalk-dim)', o }) + txt(80, 150, title, { s: 50, w: 1, o });
+}
+
+let acc = 0; SEGS.forEach((s) => { s.a = acc; acc += s.len; s.b = acc; });
+window.DURATION = acc;
+window.SEGS = SEGS.map(({ len, grp, name, cap, a, b }) => ({ len, grp, name, cap, a, b }));
+const stage = document.getElementById('stage'), capEl = document.getElementById('caption');
+const segIndex = (t) => { for (let i = 0; i < SEGS.length; i++) if (t < SEGS[i].b) return i; return SEGS.length - 1; };
+window.seek = async function (t) {
+  t = clamp(Number(t) || 0, 0, window.DURATION);
+  const i = segIndex(t), s = SEGS[i];
+  const u = t - s.a;
+  // 段落切換時淡入淡出（只由 t 決定）
+  const fade = Math.min(P(u, 0, 0.35), i === SEGS.length - 1 ? 1 : 1 - P(u, s.len - 0.35, s.len));
+  stage.innerHTML = `<g opacity="${fade.toFixed(3)}">${s.scene(u)}</g>` +
+    txt(1520, 870, `${i + 1} / ${SEGS.length}・${s.grp}・${s.name}`, { a: 'end', c: 't-body', s: 18, f: 'var(--chalk-dim)' });
+  capEl.innerHTML = s.cap; // 字幕只來自本檔 SEGS（作者撰寫、只含 <b>）
+  return true;
+};
+window.ready = Promise.all([document.fonts ? document.fonts.ready.catch(() => null) : null]);
+
+// ===================== 播放器外殼（只呼叫 seek）=====================
+document.title = META.title;
+document.getElementById('title').textContent = META.title;
+document.getElementById('subtitle').textContent = META.subtitle;
+document.getElementById('note').textContent = META.note;
+stage.setAttribute('aria-label', META.ariaLabel);
+const works = document.getElementById('works');
+if (!META.works.length) document.querySelector('.works').hidden = true;
+for (const [label, desc, href] of META.works) {
+  const li = document.createElement('li'), a = document.createElement('a'), sp = document.createElement('span');
+  a.href = href; a.textContent = label; a.target = '_blank'; a.rel = 'noopener'; sp.textContent = desc;
+  li.append(a, sp); works.append(li);
+}
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time');
+scrub.max = window.DURATION;
+// 分段刻度：每段分界一條細線（段落起點／總長）；刻度只畫在 #seekMarks，不影響 range 本身
+const playerMarks = document.getElementById('seekMarks');
+SEGS.forEach((s, i) => { if (i > 0) { const d = document.createElement('i'); d.style.left = (s.a / window.DURATION * 100) + '%'; playerMarks.append(d); } });
+// 進度條列收合：預設收起；只有獨立播放（非 embed）才讀寫 localStorage 的 UI 狀態，embed 一律不碰；不可用時只留在記憶體
+const playerEmbed = document.documentElement.classList.contains('embed');
+const playerUiGet = (k) => { if (playerEmbed) return false; try { return localStorage.getItem(k) === '1'; } catch { return false; } };
+const playerUiSet = (k, v) => { if (playerEmbed) return; try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+let playerSeekOpen = playerUiGet('anim.ui.seek');
+const playerToggle = document.getElementById('toggleSeek'), playerSeekRow = document.getElementById('seekrow');
+function playerApplyUi() {
+  playerSeekRow.hidden = !playerSeekOpen;
+  playerToggle.setAttribute('aria-expanded', String(playerSeekOpen));
+  playerToggle.textContent = playerSeekOpen ? '進度條 ▾' : '進度條 ▸';
+}
+playerToggle.onclick = () => { playerSeekOpen = !playerSeekOpen; playerUiSet('anim.ui.seek', playerSeekOpen); playerApplyUi(); };
+playerApplyUi();
+// ===== 標註工具（手寫筆跡＋文字；以段落為單位、只存在記憶體、不送網路）=====
+// 與研習平台頁同一套操作：畫筆、文字、5 色色票、收回上一筆、清除本段標註；「標註工具 ▸／▾」可收合（預設收起，鍵 anim.ui.ink）。
+// ?embed=1 完全不啟用（研習平台自己有標註）。座標一律存 0–1 的相對位置，舞台縮放或長寬比改變時筆跡仍落在同一處。
+(() => {
+  if (document.documentElement.classList.contains('embed')) return;
+  const stageEl = document.getElementById('stage') || document.getElementById('c');
+  const ctl = document.querySelector('.controls') || document.getElementById('bar');
+  if (!stageEl || !ctl || typeof window.seek !== 'function') return;
+  const COLORS = ['#efe9d8', '#f2c14e', '#e8875b', '#7fb6d9', '#8fd18a'];
+  const ends = typeof SEGS !== 'undefined' ? SEGS.map((s) => s.b) : TIMING.map((s) => s.end);
+  const segOf = (t) => { for (let i = 0; i < ends.length; i++) if (t < ends[i]) return i; return ends.length - 1; };
+  const uiGet = () => { try { return localStorage.getItem('anim.ui.ink') === '1'; } catch { return false; } };
+  const uiSet = (v) => { try { localStorage.setItem('anim.ui.ink', v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  const store = new Map(); // 段落索引 → [{k:'s',color,pts} | {k:'l',x,y,text,color}]（依畫下順序）
+  const items = (i) => { let a = store.get(i); if (!a) store.set(i, (a = [])); return a; };
+  let seg = 0, tool = null, penColor = COLORS[1], drawing = null, labelAt = null, open = uiGet();
+
+  // 標註層：有 .board 就掛在木框內（與 SVG 同尺寸）；沒有（如純 canvas 舞台）就掛在舞台父層並追蹤舞台矩形
+  const board = stageEl.closest('.board'), host = board || stageEl.parentElement;
+  if (!board) host.style.position = 'relative';
+  const layer = mk('div', 'annoLayer'), cv = mk('canvas'), labels = mk('div', 'annoLabels'), inp = mk('input', 'annoInput');
+  cv.setAttribute('aria-label', '標註區');
+  inp.type = 'text'; inp.maxLength = 60; inp.hidden = true; inp.placeholder = '輸入文字，按 Enter 放上；Esc 取消'; inp.setAttribute('aria-label', '文字標註');
+  layer.append(cv, labels, inp); host.append(layer);
+  const ctx = cv.getContext('2d');
+
+  // 工具列（控制列第三列）與切換鈕
+  const toggle = mk('button', '', '標註工具 ▸'), row = mk('div', 'annoRow');
+  toggle.id = 'toggleInk'; toggle.type = 'button'; toggle.setAttribute('aria-controls', 'annoTools'); toggle.setAttribute('aria-expanded', 'false');
+  row.id = 'annoTools'; row.hidden = true;
+  const penBtn = mk('button', '', '畫筆'), textBtn = mk('button', '', '文字'), sw = mk('span', 'annoSwatches'), undoBtn = mk('button', '', '收回上一筆'), clearBtn = mk('button', '', '清除本段標註');
+  for (const b of [penBtn, textBtn, undoBtn, clearBtn]) b.type = 'button';
+  penBtn.setAttribute('aria-pressed', 'false'); textBtn.setAttribute('aria-pressed', 'false');
+  const swBtns = COLORS.map((c, i) => {
+    const b = mk('button', 'annoSwatch'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', `顏色 ${i + 1}`); b.setAttribute('aria-pressed', c === penColor ? 'true' : 'false');
+    b.onclick = () => { penColor = c; swBtns.forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); if (labelAt) { inp.style.color = c; inp.focus(); } else if (!tool) setTool('pen'); };
+    sw.append(b); return b;
+  });
+  row.append(penBtn, textBtn, sw, undoBtn, clearBtn);
+  const seekToggle = document.getElementById('toggleSeek');
+  if (seekToggle && seekToggle.parentNode === ctl) seekToggle.after(toggle); else ctl.append(toggle);
+  ctl.append(row);
+
+  function fit() {
+    if (!board) { layer.style.inset = 'auto'; Object.assign(layer.style, { left: stageEl.offsetLeft + 'px', top: stageEl.offsetTop + 'px', width: stageEl.offsetWidth + 'px', height: stageEl.offsetHeight + 'px' }); }
+    const w = layer.clientWidth, h = layer.clientHeight, d = window.devicePixelRatio || 1;
+    layer.style.setProperty('--u', (w / 1600) + 'px');
+    cv.width = Math.max(1, Math.round(w * d)); cv.height = Math.max(1, Math.round(h * d));
+    redraw();
+  }
+  function strokePath(s) {
+    const p = s.pts, W = cv.width, H = cv.height, d = W / (layer.clientWidth || W);
+    if (p.length < 4) return;
+    ctx.strokeStyle = s.color; ctx.lineWidth = Math.max(2 * d, 5 * W / 1600); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(p[0] * W, p[1] * H);
+    for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * W, p[i + 1] * H);
+    ctx.stroke();
+  }
+  function redraw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (const it of items(seg)) if (it.k === 's') strokePath(it);
+    if (drawing && drawing.seg === seg) strokePath(drawing);
+  }
+  function renderLabels() {
+    labels.replaceChildren(...items(seg).filter((i) => i.k === 'l').map((l) => {
+      const d = mk('div', 'annoLabel', l.text);
+      d.style.left = (l.x * 100) + '%'; d.style.top = (l.y * 100) + '%'; d.style.color = l.color; d.style.borderColor = l.color;
+      return d;
+    }));
+  }
+  function setTool(t) {
+    tool = t;
+    penBtn.setAttribute('aria-pressed', t === 'pen' ? 'true' : 'false');
+    textBtn.setAttribute('aria-pressed', t === 'text' ? 'true' : 'false');
+    cv.classList.toggle('on', !!t); cv.classList.toggle('text-mode', t === 'text');
+    if (t !== 'text') closeInput();
+  }
+  function openInput(x, y) {
+    labelAt = { x, y, seg };
+    inp.value = ''; inp.style.left = (Math.min(x, 0.62) * 100) + '%'; inp.style.top = (Math.max(0.05, Math.min(y, 0.95)) * 100) + '%'; inp.style.color = penColor;
+    inp.hidden = false; requestAnimationFrame(() => inp.focus());
+  }
+  function closeInput() { inp.hidden = true; labelAt = null; }
+  function norm(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 10000) / 10000, Math.round(Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) * 10000) / 10000];
+  }
+  function endStroke() {
+    if (!drawing) return;
+    const s = drawing; drawing = null;
+    if (s.pts.length === 2) s.pts.push(s.pts[0] + 1 / 1600, s.pts[1] + 1 / 900); // 點一下也留下一個點
+    items(s.seg).push(s);
+    if (s.seg === seg) redraw();
+  }
+  cv.addEventListener('pointerdown', (e) => {
+    if (!tool) return;
+    e.preventDefault();
+    const [x, y] = norm(e);
+    if (tool === 'text') { openInput(x, y); return; }
+    cv.setPointerCapture(e.pointerId);
+    drawing = { k: 's', seg, color: penColor, pts: [x, y] };
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drawing) return;
+    const [x, y] = norm(e), p = drawing.pts, r = cv.getBoundingClientRect();
+    if (Math.hypot((x - p[p.length - 2]) * r.width, (y - p[p.length - 1]) * r.height) < 3 || p.length >= 800) return;
+    p.push(x, y); redraw();
+  });
+  cv.addEventListener('pointerup', endStroke);
+  cv.addEventListener('pointercancel', endStroke);
+  cv.addEventListener('click', (e) => e.stopPropagation()); // 全螢幕「點畫面播放／暫停」不被標註動作觸發
+  // 文字輸入：所有按鍵都不往上送，空白鍵、方向鍵、F 不會觸發播放器快捷鍵
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      const text = inp.value.trim();
+      if (text && labelAt) { items(labelAt.seg).push({ k: 'l', x: labelAt.x, y: labelAt.y, text, color: penColor }); if (labelAt.seg === seg) renderLabels(); }
+      closeInput();
+    } else if (e.key === 'Escape') closeInput();
+  });
+  inp.addEventListener('keyup', (e) => e.stopPropagation());
+  inp.addEventListener('blur', (e) => { if (e.relatedTarget && row.contains(e.relatedTarget)) return; closeInput(); }); // 點色票／按鈕時保留輸入，點別處就取消
+  penBtn.onclick = () => setTool(tool === 'pen' ? null : 'pen');
+  textBtn.onclick = () => setTool(tool === 'text' ? null : 'text');
+  undoBtn.onclick = () => { if (items(seg).pop()) { redraw(); renderLabels(); } };
+  clearBtn.onclick = () => { if (items(seg).length && confirm('清除本段所有筆跡與文字標註？')) { items(seg).length = 0; redraw(); renderLabels(); } };
+  function applyUi() {
+    row.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? '標註工具 ▾' : '標註工具 ▸';
+    if (!open) setTool(null);
+  }
+  toggle.onclick = () => { open = !open; uiSet(open); applyUi(); };
+  // 全螢幕下不放工具列；進入全螢幕時關閉畫筆，筆跡仍顯示（標註層在全螢幕元素內）
+  document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) setTool(null); });
+  // 換段時顯示該段的標註：包住 seek，不改變 seek 的畫面與回傳值
+  const baseSeek = window.seek;
+  window.seek = async function (t) {
+    const r = await baseSeek.call(this, t);
+    const i = segOf(Number(t) || 0);
+    if (i !== seg) { seg = i; closeInput(); redraw(); renderLabels(); }
+    return r;
+  };
+  new ResizeObserver(fit).observe(board || stageEl);
+  applyUi(); fit();
+})();
+let cur = 0, playing = false, last = 0;
+const chap = document.getElementById('chapters');
+const btns = SEGS.map((s, i) => {
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button'; b.textContent = `${i + 1}・${s.name}`; b.onclick = () => { playerPause(); playerShow(s.a); };
+  li.append(b); chap.append(li); return b;
+});
+function playerShow(t) {
+  cur = clamp(t, 0, window.DURATION); scrub.value = cur;
+  timeEl.textContent = `${cur.toFixed(1)} / ${window.DURATION.toFixed(1)}`;
+  window.seek(cur);
+  const i = segIndex(cur); btns.forEach((b, j) => b.setAttribute('aria-current', j === i ? 'true' : 'false'));
+}
+function playerTick(now) { if (!playing) return; cur += (now - last) / 1000; last = now; if (cur >= window.DURATION) { cur = window.DURATION; playerPause(); } playerShow(cur); if (playing) requestAnimationFrame(playerTick); }
+function playerPlay() { if (cur >= window.DURATION - 0.05) cur = 0; playing = true; playBtn.textContent = '暫停'; last = performance.now(); requestAnimationFrame(playerTick); }
+function playerPause() { playing = false; playBtn.textContent = '播放'; }
+playBtn.onclick = () => (playing ? playerPause() : playerPlay());
+scrub.oninput = () => { playerPause(); playerShow(Number(scrub.value)); };
+document.getElementById('prev').onclick = () => { playerPause(); playerShow(SEGS[segIndex(cur - 0.6)].a); };
+document.getElementById('next').onclick = () => { playerPause(); const i = segIndex(cur) + 1; playerShow(i < SEGS.length ? SEGS[i].a : window.DURATION); };
+document.getElementById('fs').onclick = () => { const th = document.getElementById('theater'); document.fullscreenElement ? document.exitFullscreen() : th.requestFullscreen?.(); };
+addEventListener('keydown', (e) => {
+  if (document.documentElement.classList.contains('embed')) return;
+  if (e.target.closest('input,button')) return;
+  if (e.key === ' ') { e.preventDefault(); playing ? playerPause() : playerPlay(); }
+  else if (e.key === 'ArrowRight') document.getElementById('next').click();
+  else if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+  else if (e.key === 'f' || e.key === 'F') document.getElementById('fs').click();
+});
+window.ready.then(() => playerShow(cur));
+// 研習平台嵌入契約（postMessage 握手，鍵名 ptt 為相容用）：被嵌入時才啟用
+addEventListener('message', (e) => {
+  if (e.source !== window.parent || window.parent === window) return;
+  const m = e.data;
+  if (!m || m.ptt !== 1 || m.type !== 'seek' || typeof m.t !== 'number' || !Number.isFinite(m.t)) return;
+  window.seek(m.t);
+});
+if (window.parent !== window) window.ready.then(() => parent.postMessage({ ptt: 1, type: 'ready', duration: window.DURATION }, '*'));
+</script>
+</html>

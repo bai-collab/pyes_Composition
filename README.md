@@ -14,6 +14,7 @@
 | 6 | 四下・記敘文（記景） | 寫一處風景，跟著腳步走（審題：範圍與重點、蒐集景色與人物活動、移步法與定點法、一站一段的總分式骨架、文題相符） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-03-scene-skeleton/) |
 | 7 | 四下・記敘文（記景） | 一站裡面怎麼寫（長肉：一段裡先總後分、移步跟著腳步寫、定點由上而下、句子照到美：顏色樣子像什麼、每段最後寫感覺、從〈○○公園〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g4-04-scene-layers/) |
 | 8 | 六上・記敘文（寫人，進階） | 中間每一段，都寫那個重點（審題：範圍與重點、四段各寫什麼：她是誰／為何說她勇敢／感想、中間段從外表個性換成顯出重點的事、用重點挑材料、文題相符） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-01-person-focus-skeleton/) |
+| 9 | 六上・記敘文（寫人，進階） | 舉一件事，證明她勇敢（長肉：中間段三層：主題句／舉例／感覺、記得有一次照開始接著後來、對話三種擺法、先寫 aaa 再寫 b、從〈最感謝的人〉骨架長出肉） | 9 段・約 2 分鐘 | [線上播放](https://bai-collab.github.io/pyes_Composition/g6-02-person-focus-layers/) |
 
 ## 怎麼使用
 
