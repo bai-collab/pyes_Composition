@@ -1,0 +1,1677 @@
+<!doctype html>
+<html lang="zh-Hant">
+<script src="../vendor/three-r170.global.js"></script>
+<script>if(/[?&]embed=1\b/.test(location.search))document.documentElement.classList.add('embed')</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>每一句都是一幅畫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap">
+<style>
+/* repo 轉教學動畫網頁｜通用骨架（黑板舞台）。新動畫只改「設定區」與「場景區」。 */
+:root{
+  --board:#23392f; --board-deep:#1a2b23; --frame:#6e4c31;
+  --chalk:#efe9d8; --chalk-dim:#a9b3a6;
+  --yellow:#f2c14e; --orange:#e8875b; --blue:#7fb6d9; --green:#8fd18a; --red:#e66a5c;
+  --font-chalk:"LXGW WenKai TC","Kaiti TC","DFKai-SB","BiauKai",serif;
+  --font-body:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--board-deep);color:var(--chalk)}
+body{margin:0;font-family:var(--font-body)}
+/* ===== 播放器版面公版（研習平台頁同一套規則）=====
+   1) 播放區 .player（標題列＋舞台＋字幕＋控制列）剛好佔一個視窗高；章節、延伸閱讀、出處在下方，往下捲才看到。
+   2) 舞台吃「扣掉標題列、字幕、控制列後的剩餘空間」：.stage-area 是容器查詢容器，.board 用 cqw／cqh 算出 16:9 最大尺寸並置中；
+      木框寬度只用 --bw 變數計入（SVG 本身維持 16:9），不得再用固定像素去扣高度。
+   3) 進度條列可收合（#toggleSeek），預設收起；收起時舞台自動變大。字幕至少預留兩行，段落切換時舞台不跳動。    4) 標註工具（手寫筆跡＋文字，.annoLayer 掛在 .board 內）：「標註工具 ▸／▾」（#toggleInk）收合一列工具列，預設收起；標註以段落為單位、只存在記憶體；?embed=1 不啟用。 */
+.wrap{max-width:1600px;margin:0 auto;padding-inline:16px;padding-bottom:28px;display:flex;flex-direction:column;gap:14px}
+.player{box-sizing:border-box;height:100vh;height:100dvh;padding-block:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.player>header,.player>.controls{flex:none}
+.theater{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:10px;align-items:center}
+.theater .caption{align-self:stretch;flex:none}
+.stage-area{flex:1 1 0;min-height:0;align-self:stretch;display:flex;align-items:center;justify-content:center;container-type:size}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 16px}
+h1{font-family:var(--font-chalk);font-weight:700;font-size:clamp(1.3rem,2.6vw,1.9rem);margin:0}
+.sub{color:var(--chalk-dim);font-size:.95rem;margin:0}
+.board{--bw:14px;box-sizing:border-box;border:var(--bw) solid var(--frame);border-radius:6px;background:var(--board);box-shadow:inset 0 0 60px rgba(0,0,0,.45);flex:none;max-width:100%;
+  width:100%;width:min(100cqw, calc((100cqh - 2 * var(--bw)) * 16 / 9 + 2 * var(--bw)))}
+/* 全螢幕：theater 本身就是全螢幕元素，沿用同一套規則（舞台吃剩餘空間、字幕預留兩行；字幕字級與行高用 vh／vw） */
+.theater:fullscreen{background:var(--board-deep);gap:1.5vh;padding:2vh 2vw;box-sizing:border-box}
+.theater:fullscreen .caption{text-align:center;font-size:min(2.4vw,3.2vh);line-height:1.4;min-height:2.8em;max-width:100%}
+@media (max-width:640px){.board{--bw:8px}}
+/* 內嵌（?embed=1）：只留舞台與字幕，尺寸全用 vh，播放由外層 postMessage 控制（版面公版不套用） */
+html.embed body{padding:0;overflow:hidden}
+html.embed header,html.embed .controls,html.embed .chapters,html.embed .works,html.embed .note{display:none}
+html.embed .wrap{max-width:none;gap:0;padding:0}
+html.embed .player,html.embed .stage-area{display:contents}
+html.embed .stage-area{container-type:normal}
+html.embed .theater{flex:none;gap:1vh}
+html.embed .board{width:min(100%, calc(89vh * 16 / 9));border-width:1.4vh}
+html.embed .caption{font-size:2.6vh;line-height:1.4;min-height:3.8vh;text-align:center;padding:0 1vh;margin:0}
+.board svg{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.caption{font-family:var(--font-chalk);font-size:clamp(1.05rem,2.2vw,1.45rem);line-height:1.5;min-height:3em;margin:0}
+.caption b{color:var(--yellow);font-weight:700}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+#fs{margin-left:auto}
+button{font:inherit;font-size:.95rem;color:var(--chalk);background:transparent;border:1.5px solid var(--chalk-dim);border-radius:999px;padding:.4em 1em;cursor:pointer}
+button:hover{border-color:var(--yellow);color:var(--yellow)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#play{min-width:5.5em;border-color:var(--yellow);color:var(--yellow)}
+#toggleSeek[aria-expanded="true"]{border-color:var(--yellow);color:var(--yellow)}
+/* 進度條列：獨佔 .controls 的第二列；黃色 6px 粗軌道畫在 #seekMarks（細線＝段落分界），上面疊透明的 range 與 16px 圓拇指 */
+.seekrow{display:flex;flex:1 0 100%;align-items:center;gap:12px}
+.seekrow[hidden]{display:none}
+#seekWrap{position:relative;flex:1 1 200px;min-width:120px;height:20px}
+#scrub{position:relative;z-index:1;-webkit-appearance:none;appearance:none;display:block;width:100%;height:20px;padding:0;margin:0;border:0;border-radius:0;background:transparent;cursor:pointer}
+#scrub::-webkit-slider-runnable-track{height:6px;background:transparent}
+#scrub::-moz-range-track{height:6px;border:0;background:transparent}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;margin-top:-5px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#scrub::-moz-range-thumb{box-sizing:border-box;width:16px;height:16px;border:2px solid var(--board-deep);border-radius:50%;background:var(--yellow)}
+#seekMarks{position:absolute;left:8px;right:8px;top:7px;height:6px;border-radius:3px;overflow:hidden;background:var(--yellow);pointer-events:none}
+#seekMarks i{position:absolute;top:0;bottom:0;width:1px;background:var(--board-deep)}
+#time{flex:none;width:8.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--chalk-dim);font-size:.85rem}
+/* 標註工具（手寫筆跡＋文字）：標註層蓋在舞台上，平常 pointer-events:none，只有畫筆／文字啟用時才攔截；?embed=1 不建立 */
+.board{position:relative}
+.annoLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2;--u:1px}
+.annoLayer canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;background:none;border-radius:0;aspect-ratio:auto;box-shadow:none}
+.annoLayer canvas.on{pointer-events:auto;touch-action:none;cursor:crosshair}
+.annoLayer canvas.on.text-mode{cursor:text}
+.annoLabels{position:absolute;inset:0;pointer-events:none}
+.annoLabel{position:absolute;transform:translateY(-50%);font-family:var(--font-chalk,serif);font-size:calc(34 * var(--u));font-weight:700;line-height:1.25;padding:calc(4 * var(--u)) calc(14 * var(--u));background:rgba(26,43,35,.82);border:calc(2 * var(--u)) solid;border-radius:calc(10 * var(--u));white-space:pre-wrap;max-width:56%;word-break:break-word}
+.annoInput{position:absolute;transform:translateY(-50%);box-sizing:border-box;width:max(180px,32%);max-width:92%;font-family:var(--font-chalk,serif);font-size:max(16px,calc(30 * var(--u)));font-weight:700;pointer-events:auto;background:rgba(26,43,35,.95);border:2px dashed var(--yellow,#f2c14e);color:var(--chalk,#efe9d8)}
+.annoInput[hidden]{display:none}
+#toggleInk[aria-expanded="true"]{border-color:var(--yellow,#f2c14e);color:var(--yellow,#f2c14e)}
+/* 工具列：獨佔 .controls 的一整列 */
+.annoRow{display:flex;flex:1 0 100%;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.annoRow[hidden]{display:none}
+.annoSwatches{display:inline-flex;align-items:center;gap:8px}
+.annoSwatch{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid transparent}
+.annoSwatch[aria-pressed="true"]{border-color:#fff;outline:2px solid var(--board-deep,var(--bg,#1a2b23))}
+.annoRow button[aria-pressed="true"]:not(.annoSwatch){border-color:var(--yellow,#f2c14e);color:var(--board-deep,#1a2b23);background:var(--yellow,#f2c14e)}
+.chapters{display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0;list-style:none}
+.chapters button{font-size:.85rem;padding:.25em .8em;border-color:rgba(239,233,216,.25);color:var(--chalk-dim)}
+.chapters button[aria-current="true"]{border-color:var(--yellow);color:var(--yellow)}
+.note{color:var(--chalk-dim);font-size:.85rem;margin:0}
+.works h2{font-family:var(--font-chalk);font-size:1.15rem;margin:0 0 6px;color:var(--yellow)}
+.works ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 16px}
+.works a{color:var(--chalk);text-underline-offset:3px}
+.works span{display:block;color:var(--chalk-dim);font-size:.85rem}
+.t-chalk{font-family:var(--font-chalk);fill:var(--chalk)}
+.t-body{font-family:var(--font-body);fill:var(--chalk)}
+</style>
+
+<div class="wrap">
+  <section class="player" aria-label="動畫播放器">
+    <header>
+      <h1 id="title"></h1>
+      <p class="sub" id="subtitle"></p>
+    </header>
+    <div class="theater" id="theater">
+      <div class="stage-area"><div class="board"><svg id="stage" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" role="img"></svg></div></div>
+      <p class="caption" id="caption" aria-live="polite"></p>
+    </div>
+    <div class="controls">
+      <button id="prev" type="button">上一段</button>
+      <button id="play" type="button">播放</button>
+      <button id="next" type="button">下一段</button>
+      <button id="toggleSeek" type="button" aria-expanded="false" aria-controls="seekrow">進度條 ▸</button>
+      <button id="fs" type="button">全螢幕</button>
+      <div class="seekrow" id="seekrow" hidden>
+        <div id="seekWrap">
+          <input id="scrub" type="range" min="0" max="1" step="0.05" value="0" aria-label="時間軸">
+          <div id="seekMarks" aria-hidden="true"></div>
+        </div>
+        <span id="time"></span>
+      </div>
+    </div>
+  </section>
+  <ul class="chapters" id="chapters"></ul>
+  <section class="works" aria-labelledby="works-h"><h2 id="works-h">延伸閱讀</h2><ul id="works"></ul></section>
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+'use strict';
+// ===================== 設定區（段落與字幕由 timing.json 注入）=====================
+// ===== 教學動畫共用圖形（不得與範本播放器或工具重名）=====
+const C = { yellow: 'var(--yellow)', blue: 'var(--blue)', green: 'var(--green)', red: 'var(--red)', orange: 'var(--orange)', purple: '#b9a3e3', chalk: 'var(--chalk)', dim: 'var(--chalk-dim)', deep: 'var(--board-deep)' };
+function arrow(x1, y1, x2, y2, color = C.dim, op = 1, both = false, k = 1, dash = '') {
+  const ex = lerp(x1, x2, k), ey = lerp(y1, y2, k);
+  const ang = Math.atan2(y2 - y1, x2 - x1), h = 16;
+  const head = (x, y, a) => `<polygon points="${x},${y} ${x - h * Math.cos(a - 0.45)},${y - h * Math.sin(a - 0.45)} ${x - h * Math.cos(a + 0.45)},${y - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  let g = `<g opacity="${op}"><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${color}" stroke-width="4" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+  if (k >= 0.99) { g += head(x2, y2, ang); if (both) g += head(x1, y1, ang + Math.PI); }
+  return g + '</g>';
+}
+// 曲線箭頭：二次貝茲，k 為繪製進度（以 dasharray 截斷）
+function curve(x1, y1, cx, cy, x2, y2, color = C.dim, op = 1, k = 1, label = '', lx = 0, ly = 0) {
+  const len = 1400;
+  let g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" stroke-dasharray="10 9" pathLength="${len}" style="stroke-dashoffset:0"/>`;
+  if (k < 0.99) g = `<g opacity="${op}"><path d="M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="4" pathLength="${len}" stroke-dasharray="${(len * k).toFixed(1)} ${len}"/>`;
+  else {
+    const a = Math.atan2(y2 - cy, x2 - cx), h = 16;
+    g += `<polygon points="${x2},${y2} ${x2 - h * Math.cos(a - 0.45)},${y2 - h * Math.sin(a - 0.45)} ${x2 - h * Math.cos(a + 0.45)},${y2 - h * Math.sin(a + 0.45)}" fill="${color}"/>`;
+  }
+  if (label) g += txt(lx, ly, label, { c: 't-body', s: 24, f: color, o: k >= 0.99 ? 1 : 0 });
+  return g + '</g>';
+}
+function hframe(x, y, w, h, op, label = '', color = C.yellow, glow = 0, size = 32) {
+  return `<g opacity="${op}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="rgba(242,193,78,${0.04 + 0.08 * glow})" stroke="${color}" stroke-width="${4 + 2 * glow}" stroke-dasharray="16 12"/>` +
+    (label ? txt(x + 26, y + 44, label, { s: size, w: 1, f: color }) : '') + '</g>';
+}
+function card(x, y, W, h, op, lines, color = C.chalk) {
+  // lines: [[文字, 字級, 顏色, 粗體, 字型類別, 置中]]，依序往下排
+  let g = `<g opacity="${op}">${box(x, y, W, h, color, 1, C.deep)}`;
+  let yy = y + 14;
+  for (const [s, size = 28, f = C.chalk, bold = false, c = 't-chalk', cx = false] of lines) {
+    yy += size * 1.25;
+    g += txt(cx ? x + W / 2 : x + 24, yy, s, { s: size, f, w: bold, c, a: cx ? 'middle' : 'start' });
+    yy += size * 0.3;
+  }
+  return g + '</g>';
+}
+function ccard(x, y, w, h, op, title, sub, color = C.chalk, tsize = 32, ssize = 24) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}` +
+    txt(x + w / 2, y + h / 2 + (sub ? -6 : tsize * 0.35), title, { a: 'middle', s: tsize, w: 1, f: color }) +
+    (sub ? txt(x + w / 2, y + h / 2 + ssize + 8, sub, { a: 'middle', c: 't-body', s: ssize, f: C.dim }) : '') + '</g>';
+}
+function chip(x, y, w, label, op, color = C.chalk, size = 26, h = 58) {
+  return `<g opacity="${op}">${box(x, y, w, h, color, 1, C.deep)}${txt(x + w / 2, y + h / 2 + size * 0.36, label, { a: 'middle', s: size, f: color })}</g>`;
+}
+function tick(x, y, s, op, color = C.green) {
+  return `<path d="M${x - s} ${y} L${x - s / 3} ${y + s * 0.7} L${x + s} ${y - s * 0.8}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="${op}"/>`;
+}
+function cross(x, y, s, op, color = C.red) {
+  return `<g opacity="${op}" stroke="${color}" stroke-width="12" stroke-linecap="round"><line x1="${x - s}" y1="${y - s}" x2="${x + s}" y2="${y + s}"/><line x1="${x + s}" y1="${y - s}" x2="${x - s}" y2="${y + s}"/></g>`;
+}
+function dot(x, y, r, color, op = 1) { return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${op}"/>`; }
+function underline(x1, x2, y, k, color = C.yellow, op = 1) { return `<line x1="${x1}" y1="${y}" x2="${lerp(x1, x2, k)}" y2="${y}" stroke="${color}" stroke-width="4" opacity="${op}"/>`; }
+// 依進度逐一出現：第 i 個元素在 t0 + i*step 開始、花 dur 秒
+const stagger = (u, t0, i, step = 0.6, dur = 0.7) => ease(P(u, t0 + i * step, t0 + i * step + dur));
+
+// 「每一句都是一幅畫」（g6-08，六年級童詩寫景）共用核心：META、2D 小工具（沿用前集）、three.js 圖層 PscGL。畫面只由段內秒數 u 決定。
+const META = {
+  title: '每一句都是一幅畫',
+  subtitle: '10 段・約 2 分鐘・六年級童詩（寫景）第一集',
+  ariaLabel: '童詩不是只有字少：每一句詩都長出一幅畫。童詩分行分節；月夜裡月亮像燈、月光灑在海上樹梢窗前的排比、夜風沙沙落葉紛紛；寫景童詩四步：選景、五感、比喻或擬人、感受。',
+  note: '出處：作文寫作要領（六年級童詩寫景、排比技巧練習）、香港教育局資優教育學校網絡分享簡報（童詩特色）、國小海洋童詩教案（五感、比喻擬人、感受）。〈月夜〉與散文對照句為自編；夜空、月亮、海面、樹、窗、落葉等立體畫面是想像的示意，由 three.js（r170，MIT 授權）繪製。鍵盤：空白鍵播放／暫停、左右鍵換段。畫面只由時間決定。',
+  works: [],
+};
+
+const PSC_WOOD = '#a9784f';
+const PSC_BLUE = '#7fb6d9';
+const PSC_ORANGE = '#F0B27A';
+const PSC_YELLOW = '#f2c14e';
+const PSC_CREAM = '#efe9d8';
+const PSC_DEEP = '#1a2b23';
+const pscK = (u, a, b) => ease(P(u, a, b));
+const pscLerp = (a, b, k) => a + (b - a) * k;
+const pscN = (value) => Number.isFinite(Number(value)) ? Number(Number(value).toFixed(2)) : 0;
+const pscO = (value) => Math.max(0, Math.min(1, Number(value) || 0)).toFixed(3);
+
+function pscHead(u, i) {
+  const seg = SEGS[i];
+  return head(u, seg.grp, seg.name);
+}
+
+function pscPaint(svg) {
+  return svg.replace(/font-size="24"/g, 'font-size="26"')
+    .replace(/<text ([^>]*?)fill="([^"]+)"/g, '<text $1style="fill:$2" fill="$2"');
+}
+
+function pscMetaphorTag(op = 1) {
+  if (op <= 0.001) return '';
+  return `<g opacity="${pscO(op)}">${box(1375, 56, 165, 60, PSC_ORANGE, 1, PSC_DEEP)}${txt(1457, 98, '比喻', { a: 'middle', s: 30, w: 1, f: PSC_ORANGE })}</g>`;
+}
+
+function pscLabel(cx, y, value, size = 30, color = PSC_CREAM, op = 1) {
+  if (op <= 0.001) return '';
+  return txt(cx, y, value, { a: 'middle', s: size, w: 1, f: color, o: op });
+}
+
+function pscPhrase(x, y, value, size = 30, color = PSC_CREAM, op = 1, anchor = 'start') {
+  if (op <= 0.001 || !value) return '';
+  return txt(x, y, value, { a: anchor, s: size, w: 1, f: color, o: op });
+}
+
+function pscPath(d, color = PSC_CREAM, width = 5, op = 1, fill = 'none', dash = '') {
+  if (op <= 0.001) return '';
+  return `<path d="${d}" fill="${fill}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${pscO(op)}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+}
+
+function pscLine(x1, y1, x2, y2, color = PSC_CREAM, width = 5, op = 1, dash = '', progress = 1) {
+  if (op <= 0.001 || progress <= 0.001) return '';
+  const ex = pscLerp(x1, x2, progress), ey = pscLerp(y1, y2, progress);
+  return pscPath(`M${pscN(x1)} ${pscN(y1)} L${pscN(ex)} ${pscN(ey)}`, color, width, op, 'none', dash);
+}
+
+function pscArrowTo(x1, y1, x2, y2, op = 1, p = 1, size = 16, dash = '') {
+  if (op <= 0.001 || p <= 0.001) return '';
+  const ex = pscLerp(x1, x2, p), ey = pscLerp(y1, y2, p), a = Math.atan2(y2 - y1, x2 - x1);
+  let g = pscLine(x1, y1, ex, ey, PSC_YELLOW, 4, op, dash);
+  if (p >= 0.99) {
+    g += `<polygon points="${x2},${y2} ${pscN(x2 - size * Math.cos(a - 0.48))},${pscN(y2 - size * Math.sin(a - 0.48))} ${pscN(x2 - size * Math.cos(a + 0.48))},${pscN(y2 - size * Math.sin(a + 0.48))}" fill="${PSC_YELLOW}" opacity="${pscO(op)}"/>`;
+  }
+  return g;
+}
+
+// 黃虛線弧：二次貝茲，k 為繪製進度（de Casteljau 截段）
+function pscCurve(x1, y1, cx, cy, x2, y2, k, op = 1, color = PSC_YELLOW, width = 4, dash = '') {
+  if (op <= 0.001 || k <= 0.001) return '';
+  const px = pscLerp(x1, cx, k), py = pscLerp(y1, cy, k);
+  const qx = pscLerp(cx, x2, k), qy = pscLerp(cy, y2, k);
+  const ex = pscLerp(px, qx, k), ey = pscLerp(py, qy, k);
+  return pscPath(`M${pscN(x1)} ${pscN(y1)} Q${pscN(px)} ${pscN(py)} ${pscN(ex)} ${pscN(ey)}`, color, width, op, 'none', dash);
+}
+
+function pscFlash(u, start) {
+  const fadeIn = pscK(u, start, start + 0.08);
+  const fadeOut = 1 - pscK(u, start + 0.42, start + 0.5);
+  return Math.max(0, Math.min(fadeIn, fadeOut));
+}
+
+function pscBlock(x, y, w, h, color, op = 1, dashed = false, flash = 0) {
+  if (op <= 0.001 || w <= 2 || h <= 2) return '';
+  if (dashed) {
+    const fill = flash > 0.01 ? `rgba(242,193,78,${(0.5 * flash).toFixed(3)})` : 'rgba(239,233,216,.012)';
+    return `<rect x="${pscN(x)}" y="${pscN(y)}" width="${pscN(w)}" height="${pscN(h)}" rx="14" fill="${fill}" stroke="${color}" stroke-width="5" stroke-dasharray="14 10" opacity="${pscO(op)}"/>`;
+  }
+  return `<rect x="${pscN(x)}" y="${pscN(y)}" width="${pscN(w)}" height="${pscN(h)}" rx="14" fill="${color}" fill-opacity=".22" stroke="${PSC_CREAM}" stroke-width="4" opacity="${pscO(op)}"/>`;
+}
+
+// 肉條：圓角長條；text 為白字 30px 置中；dashed 為虛線空條（字改黃色）
+function pscMeat(x, y, w, h, color, text, op = 1, dashed = false, flash = 0) {
+  if (op <= 0.001) return '';
+  const lit = flash > 0.01;
+  const fill = dashed ? 'none' : lit ? `rgba(242,193,78,${(0.5 * flash).toFixed(3)})` : color;
+  const fillOp = dashed || lit ? '' : ' fill-opacity="0.14"';
+  const rect = `<rect x="${pscN(x)}" y="${pscN(y)}" width="${pscN(w)}" height="${pscN(h)}" rx="14" fill="${fill}"${fillOp} stroke="${color}" stroke-width="4"${dashed ? ' stroke-dasharray="14 10"' : ''} opacity="${pscO(op)}"/>`;
+  return rect + (text ? pscLabel(x + w / 2, y + h / 2 + 11, text, 30, dashed ? PSC_YELLOW : PSC_CREAM, op) : '');
+}
+
+// 排比柱：白粉筆矩形由底往上長（grow），柱頂一條橫線當柱頭；grow ≥ 0.98 才寫字
+function pscPillar(x, top, w, bottom, text, op = 1, grow = 1) {
+  if (op <= 0.001 || grow <= 0.001) return '';
+  const k = Math.max(0, Math.min(1, grow));
+  const vis = bottom - (bottom - top) * k;
+  let g = `<g opacity="${pscO(op)}"><rect x="${pscN(x)}" y="${pscN(vis)}" width="${pscN(w)}" height="${pscN(bottom - vis)}" fill="rgba(239,233,216,.05)" stroke="${PSC_CREAM}" stroke-width="5"/>`;
+  g += pscPath(`M${pscN(x - 8)} ${pscN(vis)} H${pscN(x + w + 8)}`, PSC_CREAM, 7, 1) + '</g>';
+  if (text && k >= 0.98) g += pscLabel(x + w / 2, top + 70, text, 30, PSC_CREAM, op);
+  return g;
+}
+
+// 名言卷軸：紙面由中間往左右展開（寬 × open）；open ≥ 0.98 才寫字
+function pscScroll(x, y, w, h, text, source, op = 1, open = 1) {
+  if (op <= 0.001 || open <= 0.001) return '';
+  const k = Math.max(0, Math.min(1, open));
+  const pw = w * k, px = x + w / 2 - pw / 2;
+  let g = `<g opacity="${pscO(op)}"><rect x="${pscN(px)}" y="${pscN(y)}" width="${pscN(pw)}" height="${pscN(h)}" fill="rgba(239,233,216,.06)" stroke="${PSC_CREAM}" stroke-width="3"/>`;
+  g += pscPath(`M${pscN(x)} ${pscN(y - 10)} V${pscN(y + h + 10)} M${pscN(x + w)} ${pscN(y - 10)} V${pscN(y + h + 10)}`, PSC_CREAM, 6, 1) + '</g>';
+  if (k >= 0.98) {
+    g += pscPhrase(x + w / 2 - 50, y + h / 2 + 12, text, 34, PSC_CREAM, op, 'middle');
+    g += pscPhrase(x + w - 85, y + h / 2 + 12, source, 26, 'rgba(239,233,216,.75)', op, 'middle');
+  }
+  return g;
+}
+
+// 梯子：兩側直桿＋橫木
+function pscLadder(x1, x2, top, bottom, rungs, op = 1) {
+  if (op <= 0.001) return '';
+  let g = pscPath(`M${x1} ${top} V${bottom} M${x2} ${top} V${bottom}`, PSC_CREAM, 6, op);
+  rungs.forEach((y) => { g += pscPath(`M${x1} ${y} H${x2}`, PSC_CREAM, 5, op); });
+  return g;
+}
+
+// 石塊：有步驟小字（step）時為「步驟字＋短語」兩行；無步驟字時短語置中；slide 由下方滑入 30px
+function pscStone(x, y, w, h, color, phrase, step, op, slide = 1, dashed = false) {
+  if (op <= 0.001 || w <= 2 || h <= 2) return '';
+  const dy = 30 * (1 - Math.max(0, Math.min(1, slide)));
+  const fill = color === PSC_ORANGE ? 'rgba(240,178,122,.12)' : color === PSC_BLUE ? 'rgba(127,182,217,.12)' : 'rgba(242,193,78,.12)';
+  const rich = w >= 80 && h >= 60;
+  let g = `<g transform="translate(0 ${pscN(dy)})" opacity="${pscO(op)}"><rect x="${pscN(x)}" y="${pscN(y)}" width="${pscN(w)}" height="${pscN(h)}" rx="14" fill="${dashed ? 'none' : fill}" stroke="${color}" stroke-width="${w < 50 ? 4 : 5}"${dashed ? ' stroke-dasharray="8 6"' : ''}/>`;
+  if (!dashed && rich) g += `<path d="M${pscN(x + 12)} ${pscN(y + 14)} l10 8 M${pscN(x + w - 24)} ${pscN(y + h - 16)} l10 -8" fill="none" stroke="rgba(239,233,216,.35)" stroke-width="2"/>`;
+  g += '</g>';
+  if (phrase && step && rich) {
+    g += pscLabel(x + w / 2, y + 30, step, 24, 'rgba(239,233,216,.75)', op) + pscLabel(x + w / 2, y + 76, phrase, 30, PSC_CREAM, op);
+  } else if (phrase) {
+    g += pscLabel(x + w / 2, y + h / 2 + 11, phrase, 30, PSC_CREAM, op);
+  }
+  return g;
+}
+
+// 小牆（圖示用，無字）
+function pscWall(x, top, w, bottom, op = 1, dashed = false) {
+  if (op <= 0.001) return '';
+  let g = `<g opacity="${pscO(op)}"><rect x="${pscN(x)}" y="${pscN(top)}" width="${pscN(w)}" height="${pscN(bottom - top)}" fill="${dashed ? 'none' : 'rgba(239,233,216,.04)'}" stroke="${PSC_CREAM}" stroke-width="4"${dashed ? ' stroke-dasharray="12 9"' : ''}/>`;
+  if (!dashed) for (let yy = top + 36; yy < bottom; yy += 36) g += pscLine(x, yy, x + w, yy, 'rgba(239,233,216,.46)', 2);
+  return g + '</g>';
+}
+
+// 主張牌：黃框木牌，label 置中
+function pscBoard(x1, x2, y, h, label, op = 1, flash = 0) {
+  if (op <= 0.001) return '';
+  const fill = flash > 0.01 ? `rgba(242,193,78,${(0.5 * flash).toFixed(3)})` : 'rgba(242,193,78,.12)';
+  return `<rect x="${pscN(x1)}" y="${pscN(y)}" width="${pscN(x2 - x1)}" height="${pscN(h)}" rx="10" fill="${fill}" stroke="${PSC_YELLOW}" stroke-width="5" opacity="${pscO(op)}"/>` +
+    pscLabel((x1 + x2) / 2, y + h / 2 + 11, label, 30, PSC_CREAM, op);
+}
+
+// 小標籤（黃框深底，字 30px）
+function pscTag(x, y, w, label, op = 1) {
+  if (op <= 0.001) return '';
+  return `<g opacity="${pscO(op)}">${box(x, y, w, 64, PSC_YELLOW, 1, 'rgba(26,43,35,.94)')}${txt(x + w / 2, y + 42, label, { a: 'middle', s: 30, w: 1, f: PSC_CREAM })}</g>`;
+}
+
+function pscCardFrame(x, y, w, h, op = 1) {
+  if (op <= 0.001) return '';
+  return `<g opacity="${pscO(op)}">${box(x, y, w, h, PSC_CREAM, 1, 'rgba(239,233,216,.015)')}</g>`;
+}
+
+function pscTitleCard(x, y, w, value, size, op) {
+  if (op <= 0.001) return '';
+  return `<g opacity="${pscO(op)}"><rect x="${x}" y="${y}" width="${w}" height="56" rx="12" fill="rgba(26,43,35,.96)" stroke="${PSC_CREAM}" stroke-width="4"/></g>` +
+    txt(x + w / 2, y + 38, value, { a: 'middle', s: size, w: 1, f: PSC_YELLOW, o: op });
+}
+
+// 標題列：〈一句話的〉＋黃字「啟示」＋〉
+function pscColorTitle(cx, y, before, mark, after, size, op) {
+  if (op <= 0.001) return '';
+  return `<text x="${cx}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="700" fill="${PSC_CREAM}" opacity="${pscO(op)}">` +
+    `<tspan fill="${PSC_CREAM}" style="fill:${PSC_CREAM}">${esc(before)}</tspan>` +
+    `<tspan fill="${PSC_YELLOW}" style="fill:${PSC_YELLOW}">${esc(mark)}</tspan>` +
+    `<tspan fill="${PSC_CREAM}" style="fill:${PSC_CREAM}">${esc(after)}</tspan></text>`;
+}
+
+function pscStageTitle(u, value) {
+  return pscLabel(800, 240, value, 36, PSC_YELLOW, pscK(u, 0.2, 0.8));
+}
+
+function pscWorkTag(x, y, w, value, op = 1) {
+  return pscLabel(x + w / 2, y, value, 34, PSC_CREAM, op);
+}
+
+// 小柱（三根，各寬 10、高 34、間距 16，無字）
+function pscMiniPillars(cx, cy, op = 1) {
+  if (op <= 0.001) return '';
+  let g = `<g opacity="${pscO(op)}">`;
+  [-21, -5, 11].forEach((dx) => { g += `<rect x="${cx + dx}" y="${cy - 17}" width="10" height="34" fill="rgba(239,233,216,.06)" stroke="${PSC_CREAM}" stroke-width="3"/>`; });
+  return g + '</g>';
+}
+
+// 小卷軸（寬 44、高 30，兩側小軸，無字）
+function pscMiniScroll(cx, cy, op = 1) {
+  if (op <= 0.001) return '';
+  return `<g opacity="${pscO(op)}"><rect x="${cx - 18}" y="${cy - 11}" width="36" height="22" fill="rgba(239,233,216,.06)" stroke="${PSC_CREAM}" stroke-width="2.5"/>` +
+    pscPath(`M${cx - 20} ${cy - 15} V${cy + 15} M${cx + 20} ${cy - 15} V${cy + 15}`, PSC_CREAM, 4, 1) + '</g>';
+}
+
+// 粉筆小人（nod 為點頭進度）
+function pscDoll(cx, cy, scale = 1, op = 1, nod = 0) {
+  const dy = 10 * Math.sin(Math.PI * Math.max(0, Math.min(1, nod)));
+  return `<g transform="translate(${pscN(cx)} ${pscN(cy + dy)}) scale(${pscN(scale)})" opacity="${pscO(op)}" stroke-linecap="round" stroke-linejoin="round">` +
+    `<circle cx="0" cy="-72" r="31" fill="rgba(240,217,189,.55)" stroke="${PSC_CREAM}" stroke-width="5"/>` +
+    `<path d="M-28 -77 Q-21 -112 4 -105 Q27 -99 29 -75 Q9 -90 -4 -87 Q-18 -83 -28 -77Z" fill="${PSC_WOOD}" stroke="${PSC_CREAM}" stroke-width="3"/>` +
+    `<path d="M-43 43 Q-40 -28 0 -28 Q40 -28 43 43Z" fill="rgba(127,182,217,.28)" stroke="${PSC_CREAM}" stroke-width="5"/>` +
+    `<path d="M-37 -5 L-70 26 M37 -5 L70 26 M-19 43 L-30 91 M19 43 L30 91" fill="none" stroke="${PSC_CREAM}" stroke-width="9"/>` +
+    `<circle cx="-10" cy="-67" r="3" fill="${PSC_WOOD}"/><circle cx="10" cy="-67" r="3" fill="${PSC_WOOD}"/></g>`;
+}
+
+// 四段地圖（右上角）：active＝1–4 為亮起的那段，0 為全部不亮；op 為整組淡入
+function pscMiniMap(active, op = 1) {
+  if (op <= 0.001) return '';
+  const xs = [1150, 1246, 1342, 1438], names = ['一段', '二段', '三段', '四段'];
+  let g = `<g opacity="${pscO(op)}">`;
+  xs.forEach((x, i) => {
+    const on = active === i + 1;
+    g += `<rect x="${x}" y="200" width="86" height="50" rx="8" fill="${on ? 'rgba(242,193,78,.35)' : 'rgba(127,182,217,.30)'}" stroke="${on ? PSC_YELLOW : PSC_CREAM}" stroke-width="${on ? 4 : 2}"/>`;
+    g += txt(x + 43, 236, names[i], { a: 'middle', s: 30, w: 1, f: PSC_CREAM, o: on ? 1 : 0.7 });
+  });
+  return g + '</g>';
+}
+
+// 一行多色文字置中：parts＝[[文字, 顏色], …]，每段一個 tspan（fill 與 style 都寫）
+function pscRich(cx, y, parts, size = 30, op = 1) {
+  if (op <= 0.001) return '';
+  const spans = parts.map(([t, c]) => `<tspan fill="${c}" style="fill:${c}">${esc(t)}</tspan>`).join('');
+  return `<text x="${cx}" y="${y}" class="t-chalk" font-size="${size}" font-weight="700" text-anchor="middle" fill="${PSC_CREAM}" opacity="${pscO(op)}">${spans}</text>`;
+}
+
+// ===== 各段 =====
+
+// ===================== three.js 圖層（WebGL 畫布墊在 SVG 後方，只由 u 決定）=====================
+// 用法：在場景函式開頭呼叫 PscGL.show('s3', u, 15)；沒有立體畫面的段呼叫 PscGL.show(null, u, len)。
+// 立體場景用 PscGL.register('s3', (THREE) => ({ scene, camera, update(u) {...} })) 註冊；build 只執行一次，update 每次 seek 都呼叫。
+// 隨機請用 PscGL.rand(i, k)（固定種子），不要用 Math.random。
+// 物件可帶 viewport: { x, y, w, h }（舞台座標）只畫在小窗內；相機 aspect 要等於 w／h。
+const PscGL = (() => {
+  let renderer = null, canvas = null, failed = false;
+  const scenes = {};
+  function ensure() {
+    if (renderer || failed) return renderer;
+    try {
+      const stageEl = document.getElementById('stage');
+      const board = stageEl.closest('.board') || stageEl.parentElement;
+      canvas = document.createElement('canvas');
+      canvas.width = 1600; canvas.height = 900;
+      Object.assign(canvas.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', pointerEvents: 'none', zIndex: '0', opacity: '0' });
+      board.insertBefore(canvas, board.firstChild);
+      Object.assign(stageEl.style, { position: 'relative', zIndex: '1' });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+      renderer.setPixelRatio(1);
+      renderer.setSize(1600, 900, false);
+      renderer.setClearColor(0x000000, 0);
+    } catch (e) { failed = true; renderer = null; }
+    return renderer;
+  }
+  function fadeOf(u, len) { return Math.min(P(u, 0, 0.35), 1 - P(u, len - 0.35, len)); }
+  return {
+    register(id, build) { scenes[id] = { build, obj: null }; },
+    show(id, u, len) {
+      const r = ensure();
+      if (!r) return;
+      if (!id || !scenes[id]) { r.clear(); canvas.style.opacity = '0'; return; }
+      const s = scenes[id];
+      if (!s.obj) s.obj = s.build(THREE);
+      s.obj.update(u);
+      const v = s.obj.viewport; // 選用：{ x, y, w, h }（舞台座標，左上為原點），只畫在這個矩形內
+      r.setScissorTest(!!v);
+      r.clear();
+      if (v) { r.setScissor(v.x, 900 - v.y - v.h, v.w, v.h); r.setViewport(v.x, 900 - v.y - v.h, v.w, v.h); }
+      else r.setViewport(0, 0, 1600, 900);
+      r.render(s.obj.scene, s.obj.camera);
+      canvas.style.opacity = String(Math.max(0, fadeOf(u, len)).toFixed(3));
+    },
+    rand(i, k = 0) { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); },
+    get available() { return !!ensure(); },
+  };
+})();
+
+// g6-08 場景 A：分行分節、海上月光、樹梢白紗、落葉紛紛與寫詩練習。
+// 本檔只定義 s2、s4、s5、s8、s10 與 pa_ 前綴的小工具。
+
+function pa_camera(THREE) {
+  const camera = new THREE.OrthographicCamera(-8, 8, 4.5, -4.5, 0.1, 100);
+  camera.position.set(0, 0, 20);
+  camera.lookAt(0, 0, 0);
+  return camera;
+}
+
+function pa_gradient(THREE, scene, topHex, bottomHex, opacity = 0.92) {
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const pos = geometry.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const top = new THREE.Color(topHex), bottom = new THREE.Color(bottomHex);
+  for (let i = 0; i < pos.count; i++) {
+    const k = THREE.MathUtils.clamp(pos.getY(i) + 0.5, 0, 1);
+    const color = bottom.clone().lerp(top, k);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.scale.set(16, 9, 1);
+  mesh.position.z = -8;
+  scene.add(mesh);
+  return mesh;
+}
+
+function pa_stars(THREE, scene, count = 160, size = 3.2) {
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const phases = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = -7.65 + PscGL.rand(i, 11) * 15.3;
+    positions[i * 3 + 1] = -3.95 + PscGL.rand(i, 12) * 7.9;
+    positions[i * 3 + 2] = -4.2 + PscGL.rand(i, 13) * 0.3;
+    phases[i] = PscGL.rand(i, 14) * Math.PI * 2;
+    colors[i * 3] = 0.36;
+    colors[i * 3 + 1] = 0.48;
+    colors[i * 3 + 2] = 0.72;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const colorAttr = new THREE.BufferAttribute(colors, 3);
+  colorAttr.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute('color', colorAttr);
+  const material = new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false });
+  const points = new THREE.Points(geometry, material);
+  scene.add(points);
+  return {
+    update(u) {
+      for (let i = 0; i < count; i++) {
+        const twinkle = 0.28 + 0.48 * (0.5 + 0.5 * Math.sin(u * 0.47 + phases[i]));
+        colorAttr.setXYZ(i, 0.24 * twinkle, 0.39 * twinkle, 0.72 * twinkle);
+      }
+      colorAttr.needsUpdate = true;
+    },
+  };
+}
+
+function pa_waterSheet(THREE, scene, horizon, opacity, upperHex, lowerHex) {
+  const nx = 72, ny = 30, width = 16, depth = 4.1;
+  const positions = new Float32Array((nx + 1) * (ny + 1) * 3);
+  const colors = new Float32Array((nx + 1) * (ny + 1) * 3);
+  const indices = [];
+  const upper = new THREE.Color(upperHex), lower = new THREE.Color(lowerHex);
+  for (let j = 0; j <= ny; j++) {
+    const v = j / ny;
+    const color = upper.clone().lerp(lower, v);
+    for (let i = 0; i <= nx; i++) {
+      const n = j * (nx + 1) + i;
+      positions[n * 3] = -width / 2 + width * i / nx;
+      positions[n * 3 + 1] = horizon - depth * v;
+      positions[n * 3 + 2] = -2.8 + v * 0.1;
+      colors[n * 3] = color.r;
+      colors[n * 3 + 1] = color.g;
+      colors[n * 3 + 2] = color.b;
+      if (i < nx && j < ny) {
+        const a = n, b = n + 1, c = n + nx + 1, d = c + 1;
+        indices.push(a, b, d, a, d, c);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  const positionAttr = new THREE.BufferAttribute(positions, 3);
+  positionAttr.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute('position', positionAttr);
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  const material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return {
+    update(u, len) {
+      const t = Math.min(u, len - 1.5) * 0.28;
+      for (let j = 0; j <= ny; j++) {
+        const v = j / ny;
+        for (let i = 0; i <= nx; i++) {
+          const n = j * (nx + 1) + i;
+          const x = -width / 2 + width * i / nx;
+          const wave = Math.sin(x * 1.14 + t + j * 0.22) * 0.035 + Math.sin(x * 0.58 - t * 0.72 + j * 0.39) * 0.022;
+          positionAttr.setY(n, horizon - depth * v + wave * (0.45 + v));
+        }
+      }
+      positionAttr.needsUpdate = true;
+    },
+  };
+}
+
+function pa_waveLines(THREE, scene, horizon, color, opacity, lineCount = 12) {
+  const lines = [];
+  const pointsPerLine = 72;
+  for (let row = 0; row < lineCount; row++) {
+    const positions = new Float32Array(pointsPerLine * 3);
+    const geometry = new THREE.BufferGeometry();
+    const attribute = new THREE.BufferAttribute(positions, 3);
+    attribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('position', attribute);
+    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * (0.62 + 0.38 * PscGL.rand(row, 30)), depthWrite: false });
+    const line = new THREE.Line(geometry, material);
+    scene.add(line);
+    lines.push({ attribute, row });
+  }
+  return {
+    update(u, len) {
+      const t = Math.min(u, len - 1.5) * 0.24;
+      lines.forEach(({ attribute, row }) => {
+        for (let i = 0; i < pointsPerLine; i++) {
+          const x = -7.7 + 15.4 * i / (pointsPerLine - 1);
+          const y = horizon - 0.18 - row * 0.29 + Math.sin(x * 0.8 + t + row * 0.63) * 0.035;
+          attribute.setXYZ(i, x, y, -0.2 + row * 0.005);
+        }
+        attribute.needsUpdate = true;
+      });
+    },
+  };
+}
+
+function pa_moon(THREE, scene, x, y, z = -0.2, radius = 0.5) {
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.4, 24, 16), new THREE.MeshBasicMaterial({ color: 0xc4d5e5, transparent: true, opacity: 0.045, depthWrite: false }));
+  halo.position.set(x, y, z - 0.25);
+  halo.scale.set(1.2, 0.86, 0.18);
+  scene.add(halo);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.5, 24, 16), new THREE.MeshBasicMaterial({ color: 0xf2e9d2, transparent: true, opacity: 0.12, depthWrite: false }));
+  glow.position.set(x, y, z - 0.1);
+  glow.scale.set(1.06, 1.06, 0.3);
+  scene.add(glow);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 20), new THREE.MeshBasicMaterial({ color: 0xf5eedb }));
+  orb.position.set(x, y, z);
+  scene.add(orb);
+  return { halo, glow, orb };
+}
+
+function pa_branch(THREE, scene, from, to, radiusBottom, radiusTop, material, sides = 8) {
+  const start = new THREE.Vector3(from[0], from[1], from[2] || 0);
+  const end = new THREE.Vector3(to[0], to[1], to[2] || 0);
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, direction.length(), sides, 1), material);
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  scene.add(mesh);
+  return mesh;
+}
+
+function pa_leafGeometry(THREE) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.28);
+  shape.bezierCurveTo(-0.13, -0.18, -0.17, -0.02, -0.12, 0.12);
+  shape.bezierCurveTo(-0.08, 0.23, -0.025, 0.3, 0, 0.34);
+  shape.bezierCurveTo(0.035, 0.29, 0.12, 0.2, 0.14, 0.08);
+  shape.bezierCurveTo(0.17, -0.06, 0.1, -0.2, 0, -0.28);
+  return new THREE.ShapeGeometry(shape, 8);
+}
+
+function pa_leafVeinGeometry(THREE) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.009, -0.235);
+  shape.lineTo(0.009, -0.235);
+  shape.lineTo(0.007, 0.245);
+  shape.lineTo(-0.007, 0.245);
+  return new THREE.ShapeGeometry(shape, 1);
+}
+
+function pa_card(x, y, w, h, op) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="rgba(12,22,36,.88)" stroke="rgba(239,233,216,.38)" stroke-width="3" opacity="${pscO(op)}"/>`;
+}
+
+function pa_richPhrase(x, y, parts, size, op = 1) {
+  if (op <= 0.001) return '';
+  const spans = parts.map(([value, color]) => `<tspan fill="${color}" style="fill:${color}">${esc(value)}</tspan>`).join('');
+  return `<text x="${x}" y="${y}" class="t-chalk" font-size="${size}" font-weight="700" text-anchor="start" fill="${PSC_CREAM}" opacity="${pscO(op)}">${spans}</text>`;
+}
+
+function pa_oceanScene(THREE, options = {}) {
+  const scene = new THREE.Scene();
+  const horizon = options.horizon ?? -0.72;
+  const segmentLen = options.len ?? 14;
+  pa_gradient(THREE, scene, options.skyTop || '#0a1429', options.skyBottom || '#17253a', options.skyOpacity ?? 0.92);
+  const stars = options.stars === false ? null : pa_stars(THREE, scene, options.starCount ?? 92, 2.8);
+  const water = pa_waterSheet(THREE, scene, horizon, options.waterOpacity ?? 0.72, options.waterTop || '#23394d', options.waterBottom || '#101d2b');
+  const waves = pa_waveLines(THREE, scene, horizon, options.waveColor || '#9bb5bc', options.waveOpacity ?? 0.16, options.waveCount ?? 14);
+  return {
+    scene,
+    camera: pa_camera(THREE),
+    water,
+    waves,
+    stars,
+    update(u) {
+      water.update(u, segmentLen);
+      waves.update(u, segmentLen);
+      if (stars) stars.update(Math.min(u, segmentLen - 1.5));
+    },
+  };
+}
+
+PscGL.register('a-s2', (THREE) => {
+  const scene = new THREE.Scene();
+  pa_gradient(THREE, scene, '#081229', '#101d37', 0.94);
+  const stars = pa_stars(THREE, scene, 210, 3.5);
+  const camera = pa_camera(THREE);
+  return {
+    scene,
+    camera,
+    update(u) { stars.update(u); },
+  };
+});
+
+PscGL.register('a-s4', (THREE) => {
+  const base = pa_oceanScene(THREE, { len: 15, horizon: -0.68, skyTop: '#081329', skyBottom: '#14243b', waterTop: '#24435a', waterBottom: '#101b2b', waveColor: '#98b6c5', waveOpacity: 0.18, starCount: 112 });
+  const moon = pa_moon(THREE, base.scene, 4.85, 2.55, -0.7, 0.46);
+  const pathShape = new THREE.Shape();
+  pathShape.moveTo(4.65, -0.78);
+  pathShape.lineTo(4.32, -1.4);
+  pathShape.lineTo(3.2, -2.45);
+  pathShape.lineTo(1.25, -4.62);
+  pathShape.lineTo(7.05, -4.62);
+  pathShape.lineTo(5.45, -2.5);
+  pathShape.lineTo(4.95, -1.45);
+  const pathMaterial = new THREE.MeshBasicMaterial({ color: 0xf3dfaa, transparent: true, opacity: 0.075, side: THREE.DoubleSide, depthWrite: false });
+  const path = new THREE.Mesh(new THREE.ShapeGeometry(pathShape, 24), pathMaterial);
+  path.position.z = -0.75;
+  base.scene.add(path);
+  const glints = [];
+  const rows = 18;
+  for (let row = 0; row < rows; row++) {
+    const progress = row / (rows - 1);
+    const y = -0.86 - progress * 3.45;
+    const center = 4.62 - progress * 1.12;
+    const span = 0.28 + progress * 1.0;
+    const rowMaterial = new THREE.MeshBasicMaterial({ color: row % 4 === 0 ? 0xffedc3 : 0xf1dca7, transparent: true, opacity: 0.01, depthWrite: false });
+    const segments = [];
+    for (let part = 0; part < 7; part++) {
+      const key = row * 19 + part;
+      const x = center + (PscGL.rand(key, 51) - 0.5) * span * 2;
+      const length = 0.12 + PscGL.rand(key, 52) * (0.17 + progress * 0.24);
+      const geometry = new THREE.PlaneGeometry(length, 0.025 + PscGL.rand(key, 53) * 0.025);
+      const mesh = new THREE.Mesh(geometry, rowMaterial);
+      mesh.position.set(x, y + (PscGL.rand(key, 54) - 0.5) * 0.18, -0.58 + part * 0.002);
+      mesh.rotation.z = (PscGL.rand(key, 55) - 0.5) * 0.08;
+      base.scene.add(mesh);
+      segments.push(mesh);
+    }
+    glints.push({ material: rowMaterial, progress, segments });
+  }
+  return {
+    scene: base.scene,
+    camera: base.camera,
+    update(u) {
+      base.update(u);
+      const motion = Math.min(u, 13.5);
+      const reach = pscK(motion, 1.5, 8);
+      pathMaterial.opacity = 0.018 + 0.075 * reach;
+      glints.forEach(({ material, progress }, row) => {
+        const arrival = pscK(reach, Math.max(0, progress - 0.11), Math.min(1, progress + 0.12));
+        const shimmer = 0.78 + 0.22 * Math.sin(motion * 1.1 + row * 0.87);
+        material.opacity = (0.015 + arrival * 0.48) * shimmer;
+      });
+      moon.glow.material.opacity = 0.12 + 0.012 * Math.sin(motion * 0.32);
+    },
+  };
+});
+
+PscGL.register('a-s5', (THREE) => {
+  const scene = new THREE.Scene();
+  pa_gradient(THREE, scene, '#09152d', '#142337', 0.94);
+  const stars = pa_stars(THREE, scene, 74, 2.6);
+  pa_moon(THREE, scene, 6.25, 3.22, -1.6, 0.36);
+  const bark = new THREE.MeshBasicMaterial({ color: 0x111d2a });
+  const barkLight = new THREE.MeshBasicMaterial({ color: 0x27333a });
+  pa_branch(THREE, scene, [3.45, -4.1, -0.2], [3.7, 1.22, -0.1], 0.25, 0.1, bark, 9);
+  pa_branch(THREE, scene, [3.67, -0.65, 0], [2.56, 0.9, 0], 0.12, 0.045, barkLight, 7);
+  pa_branch(THREE, scene, [3.69, -0.15, 0], [4.72, 1.42, 0], 0.11, 0.04, barkLight, 7);
+  pa_branch(THREE, scene, [3.65, 0.45, 0], [3.2, 1.83, 0], 0.08, 0.03, barkLight, 7);
+  pa_branch(THREE, scene, [6.65, -4.15, -0.25], [6.58, 0.72, -0.15], 0.2, 0.08, bark, 8);
+  pa_branch(THREE, scene, [6.61, -0.42, -0.05], [5.78, 0.75, -0.02], 0.09, 0.035, barkLight, 7);
+  pa_branch(THREE, scene, [6.6, 0.05, -0.02], [7.3, 1.18, -0.02], 0.08, 0.03, barkLight, 7);
+  const crownSpecs = [
+    [2.55, 1.45, 1.18, 0.78], [3.27, 2.05, 1.28, 0.92], [4.14, 1.75, 1.2, 0.82],
+    [3.52, 2.63, 0.92, 0.72], [4.83, 2.25, 0.93, 0.72], [5.56, 1.44, 0.96, 0.68],
+    [6.05, 1.38, 0.88, 0.64], [6.78, 1.77, 1.02, 0.72], [7.39, 1.24, 0.86, 0.62],
+  ];
+  const deepLeaf = new THREE.Color('#183047'), paleLeaf = new THREE.Color('#a7b8b8');
+  const crowns = [];
+  crownSpecs.forEach(([x, y, sx, sy], i) => {
+    const geometry = new THREE.IcosahedronGeometry(0.78, 1);
+    const material = new THREE.MeshBasicMaterial({ color: deepLeaf.clone().multiplyScalar(0.8 + (i % 3) * 0.08) });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, 0.08 + i * 0.006);
+    mesh.scale.set(sx, sy, 0.58);
+    scene.add(mesh);
+    crowns.push({ material, factor: 0.64 + (i % 4) * 0.08 });
+  });
+  const leafGeo = pa_leafGeometry(THREE);
+  const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0xd7e0d7, transparent: true, opacity: 0.04, side: THREE.DoubleSide, depthWrite: false });
+  const edgeLeaves = new THREE.InstancedMesh(leafGeo, edgeMaterial, 156);
+  edgeLeaves.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  edgeLeaves.frustumCulled = false;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < 156; i++) {
+    const spec = crownSpecs[i % crownSpecs.length];
+    const x = spec[0] + (PscGL.rand(i, 62) - 0.5) * spec[2] * 1.75;
+    const y = spec[1] + (PscGL.rand(i, 63) - 0.5) * spec[3] * 1.65;
+    dummy.position.set(x, y, 0.58 + PscGL.rand(i, 64) * 0.18);
+    dummy.rotation.set((PscGL.rand(i, 65) - 0.5) * 0.38, 0, PscGL.rand(i, 66) * Math.PI * 2);
+    const size = 0.43 + PscGL.rand(i, 67) * 0.45;
+    dummy.scale.set(size, size, 1);
+    dummy.updateMatrix();
+    edgeLeaves.setMatrixAt(i, dummy.matrix);
+  }
+  scene.add(edgeLeaves);
+  const veilMaterial = new THREE.MeshBasicMaterial({ color: 0xd8e3e4, transparent: true, opacity: 0, depthWrite: false });
+  const veils = crownSpecs.slice(1, 7).map(([x, y, sx, sy], i) => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.64, 14, 10), veilMaterial);
+    mesh.position.set(x, y + 0.02, 0.42 + i * 0.004);
+    mesh.scale.set(sx * 1.12, sy * 0.85, 0.38);
+    scene.add(mesh);
+    return mesh;
+  });
+  const camera = pa_camera(THREE);
+  return {
+    scene,
+    camera,
+    update(u) {
+      const motion = Math.min(u, 12.5);
+      const silver = pscK(motion, 1.5, 8);
+      stars.update(motion);
+      crowns.forEach(({ material, factor }) => material.color.copy(deepLeaf).lerp(paleLeaf, silver * factor));
+      edgeMaterial.opacity = 0.02 + silver * 0.54;
+      veilMaterial.opacity = silver * 0.075;
+      veils.forEach((mesh, i) => { mesh.scale.y = (0.85 + 0.05 * Math.sin(motion * 0.34 + i)) * (0.8 + silver * 0.12); });
+    },
+  };
+});
+
+PscGL.register('a-s8', (THREE) => {
+  const scene = new THREE.Scene();
+  pa_gradient(THREE, scene, '#09152b', '#172235', 0.95);
+  const stars = pa_stars(THREE, scene, 56, 2.4);
+  pa_moon(THREE, scene, 6.46, 3.28, -2.1, 0.31);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(16, 0.88), new THREE.MeshBasicMaterial({ color: 0x101b26, transparent: true, opacity: 0.8, depthWrite: false }));
+  ground.position.set(0, -4.12, -0.45);
+  scene.add(ground);
+  const trunk = new THREE.MeshBasicMaterial({ color: 0x111923 });
+  const limbs = new THREE.MeshBasicMaterial({ color: 0x202d37 });
+  pa_branch(THREE, scene, [4.08, -4.18, -0.12], [4.32, 1.56, 0], 0.29, 0.1, trunk, 9);
+  pa_branch(THREE, scene, [4.22, -0.58, 0], [2.78, 0.85, 0.02], 0.12, 0.035, limbs, 7);
+  pa_branch(THREE, scene, [4.3, -0.1, 0], [5.58, 1.42, 0.02], 0.11, 0.035, limbs, 7);
+  pa_branch(THREE, scene, [4.31, 0.48, 0], [3.58, 2.14, 0.02], 0.085, 0.028, limbs, 7);
+  pa_branch(THREE, scene, [5.02, 0.46, 0], [6.07, 2.0, 0.02], 0.075, 0.025, limbs, 7);
+  const canopySpecs = [
+    [2.75, 1.58, 1.12, 0.74], [3.4, 2.22, 1.0, 0.72], [4.27, 2.48, 1.14, 0.78],
+    [5.15, 2.23, 1.16, 0.76], [5.83, 1.6, 1.03, 0.7], [4.24, 1.44, 1.18, 0.8],
+  ];
+  canopySpecs.forEach(([x, y, sx, sy], i) => {
+    const material = new THREE.MeshBasicMaterial({ color: i % 2 ? 0x263342 : 0x1c2935 });
+    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.78, 1), material);
+    mesh.position.set(x, y, -0.02 + i * 0.005);
+    mesh.scale.set(sx, sy, 0.62);
+    scene.add(mesh);
+  });
+
+  const leafGeometry = pa_leafGeometry(THREE), veinGeometry = pa_leafVeinGeometry(THREE);
+  const palette = [0xd9877f, 0xe5aa77, 0xe9c59a];
+  const leafTotal = 102, groundTotal = 186;
+  const leafGroups = palette.map((color, group) => {
+    const count = Math.ceil(leafTotal / palette.length);
+    const leafMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, side: THREE.DoubleSide, depthWrite: false });
+    const veinMaterial = new THREE.MeshBasicMaterial({ color: 0xffe1bc, transparent: true, opacity: 0.74, side: THREE.DoubleSide, depthWrite: false });
+    const leaves = new THREE.InstancedMesh(leafGeometry, leafMaterial, count);
+    const veins = new THREE.InstancedMesh(veinGeometry, veinMaterial, count);
+    leaves.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    veins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    leaves.frustumCulled = false;
+    veins.frustumCulled = false;
+    scene.add(leaves, veins);
+    return { leaves, veins, leafMaterial, veinMaterial, count };
+  });
+  const groundGroups = palette.map((color) => {
+    const count = Math.ceil(groundTotal / palette.length);
+    const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, side: THREE.DoubleSide, depthWrite: false });
+    const leaves = new THREE.InstancedMesh(leafGeometry, material, count);
+    leaves.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    leaves.frustumCulled = false;
+    scene.add(leaves);
+    return { leaves, material, count };
+  });
+  const fallingData = Array.from({ length: leafTotal }, (_, i) => ({
+    x: 2.7 + PscGL.rand(i, 71) * 3.2,
+    y: 1.12 + PscGL.rand(i, 72) * 1.75,
+    delay: PscGL.rand(i, 73) * 3.35,
+    duration: 4.2 + PscGL.rand(i, 74) * 2.45,
+    phase: PscGL.rand(i, 75) * Math.PI * 2,
+    tilt: (PscGL.rand(i, 76) - 0.5) * 0.5,
+    rot: PscGL.rand(i, 77) * Math.PI * 2,
+  }));
+  const groundData = Array.from({ length: groundTotal }, (_, i) => ({
+    x: -7.5 + PscGL.rand(i, 81) * 15,
+    y: -4.03 + PscGL.rand(i, 82) * 0.23,
+    phase: PscGL.rand(i, 83),
+    rot: PscGL.rand(i, 84) * Math.PI * 2,
+    size: 0.44 + PscGL.rand(i, 85) * 0.58,
+  }));
+  const dummy = new THREE.Object3D();
+  const camera = pa_camera(THREE);
+  return {
+    scene,
+    camera,
+    update(u) {
+      const motion = Math.min(u, 14.5);
+      stars.update(motion);
+      leafGroups.forEach((group) => { group.leaves.count = 0; group.veins.count = 0; });
+      fallingData.forEach((leaf, i) => {
+        const groupIndex = i % palette.length, slot = Math.floor(i / palette.length);
+        const group = leafGroups[groupIndex];
+        const start = 1.0 + leaf.delay;
+        const p = THREE.MathUtils.clamp((motion - start) / leaf.duration, 0, 1);
+        const sway = Math.sin(motion * 1.15 + leaf.phase) * 0.24 * (p > 0 ? 1 : 0.2);
+        const x = leaf.x + p * (1.05 + PscGL.rand(i, 86) * 1.05) + sway;
+        const y = leaf.y - (leaf.y + 3.8) * p + Math.sin(p * Math.PI) * 0.22;
+        const z = 0.72 + (i % 9) * 0.012;
+        const rot = leaf.rot + p * (2.4 + PscGL.rand(i, 87) * 1.8) + Math.sin(motion * 0.8 + leaf.phase) * 0.12;
+        const tilt = leaf.tilt + Math.sin(motion * 0.9 + leaf.phase) * 0.24 * (p < 1 ? 1 : 0.1);
+        const scale = 0.58 + 0.16 * PscGL.rand(i, 88);
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(tilt, Math.sin(motion * 0.72 + leaf.phase) * 0.42 * (p < 1 ? 1 : 0.06), rot);
+        dummy.scale.set(scale, scale * (0.86 + 0.2 * PscGL.rand(i, 89)), 1);
+        dummy.updateMatrix();
+        group.leaves.setMatrixAt(slot, dummy.matrix);
+        group.veins.setMatrixAt(slot, dummy.matrix);
+        group.leaves.count = Math.max(group.leaves.count, slot + 1);
+        group.veins.count = Math.max(group.veins.count, slot + 1);
+      });
+      leafGroups.forEach((group) => {
+        group.leaves.instanceMatrix.needsUpdate = true;
+        group.veins.instanceMatrix.needsUpdate = true;
+      });
+      groundGroups.forEach((group) => { group.leaves.count = 0; });
+      groundData.forEach((leaf, i) => {
+        const groupIndex = i % palette.length, slot = Math.floor(i / palette.length);
+        const group = groundGroups[groupIndex];
+        const appear = pscK(motion, 4.5 + leaf.phase * 4.2, 6.0 + leaf.phase * 4.2);
+        dummy.position.set(leaf.x, leaf.y, 0.24 + (i % 11) * 0.01);
+        dummy.rotation.set(0, 0, leaf.rot);
+        dummy.scale.set(leaf.size * appear, leaf.size * appear, 1);
+        dummy.updateMatrix();
+        group.leaves.setMatrixAt(slot, dummy.matrix);
+        group.leaves.count = Math.max(group.leaves.count, slot + 1);
+      });
+      groundGroups.forEach((group) => { group.leaves.instanceMatrix.needsUpdate = true; });
+    },
+  };
+});
+
+PscGL.register('a-s10', (THREE) => pa_oceanScene(THREE, {
+  len: 14,
+  horizon: -0.68,
+  skyTop: '#0a1427',
+  skyBottom: '#131f31',
+  skyOpacity: 0.92,
+  waterTop: '#1c3040',
+  waterBottom: '#101925',
+  waterOpacity: 0.45,
+  waveColor: '#8299a5',
+  waveOpacity: 0.095,
+  waveCount: 9,
+  starCount: 28,
+}));
+
+function s2(u) {
+  PscGL.show('a-s2', u, 12);
+  const lines = [
+    [300, '月亮悄悄爬上山頭，'],
+    [345, '像一盞剛點亮的燈。'],
+    [420, '月光灑在海上，'],
+    [465, '海浪鋪成一條銀色的路；'],
+    [510, '月光灑在樹梢，'],
+    [555, '葉子輕輕披上白紗；'],
+    [600, '月光灑在窗前，'],
+    [645, '小貓的影子伸了個懶腰。'],
+    [720, '夜風沙沙地吹，'],
+    [765, '葉子一片片飄落，'],
+    [810, '輕輕對大地說：晚安。'],
+  ];
+  let g = pscHead(u, 1);
+  lines.forEach(([y, value], i) => {
+    const start = 0.5 + i * 0.54;
+    const k = pscK(u, start, start + 0.38);
+    if (k <= 0.001) return;
+    g += `<g opacity="${pscO(k)}" transform="translate(0 ${pscN(24 * (1 - k))})">${txt(520, y, value, { s: 30, f: PSC_CREAM, w: 1 })}</g>`;
+  });
+  const stanzaK = pscK(u, 6.2, 7.0);
+  if (stanzaK > 0.001) {
+    const brace = (x, top, bottom, label, cy) => {
+      const mid = (top + bottom) / 2;
+      const d = `M${x + 20} ${top} C${x + 3} ${top} ${x + 3} ${top} ${x + 3} ${top + 18} L${x + 3} ${mid - 16} C${x + 3} ${mid - 5} ${x - 10} ${mid - 5} ${x - 18} ${mid} C${x - 10} ${mid + 5} ${x + 3} ${mid + 5} ${x + 3} ${mid + 16} L${x + 3} ${bottom - 18} C${x + 3} ${bottom} ${x + 3} ${bottom} ${x + 20} ${bottom}`;
+      return `<path d="${d}" fill="none" stroke="${PSC_YELLOW}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="${pscO(stanzaK)}"/>` + pscPhrase(x + 32, cy, label, 30, PSC_YELLOW, stanzaK);
+    };
+    g += brace(1042, 278, 366, '第一節', 333);
+    g += brace(1042, 399, 666, '第二節', 539);
+    g += brace(1042, 698, 829, '第三節', 778);
+  }
+  const cardK = pscK(u, 9.5, 9.9);
+  if (cardK > 0.001) {
+    g += `<g opacity="${pscO(cardK)}">${box(1150, 430, 340, 72, PSC_YELLOW, 1, 'rgba(12,22,36,.92)')}</g>`;
+    g += pscPhrase(1172, 475, '一句一行，一節一組', 30, PSC_CREAM, cardK);
+  }
+  return pscPaint(g);
+}
+
+function s4(u) {
+  PscGL.show('a-s4', u, 15);
+  const op = pscK(u, 0.3, 0.9);
+  let g = pscHead(u, 3);
+  g += pa_card(110, 230, 650, 160, op);
+  g += pscPhrase(150, 300, '月光灑在海上，', 34, PSC_CREAM, op);
+  g += pscPhrase(150, 350, '海浪鋪成一條銀色的路；', 34, PSC_CREAM, op);
+  return pscPaint(g);
+}
+
+function s5(u) {
+  PscGL.show('a-s5', u, 14);
+  const op = pscK(u, 0.3, 0.9);
+  let g = pscHead(u, 4);
+  g += pa_card(110, 230, 650, 160, op);
+  g += pscPhrase(150, 300, '月光灑在樹梢，', 34, PSC_CREAM, op);
+  g += pscPhrase(150, 350, '葉子輕輕披上白紗；', 34, PSC_CREAM, op);
+  return pscPaint(g);
+}
+
+function s8(u) {
+  PscGL.show('a-s8', u, 16);
+  const op = pscK(u, 0.3, 0.9);
+  let g = pscHead(u, 7);
+  g += pa_card(110, 210, 650, 210, op);
+  g += pa_richLeft(150, 270, [['夜風', PSC_CREAM], ['沙沙', PSC_YELLOW], ['地吹，', PSC_CREAM]], 34, op);
+  g += pa_richLeft(150, 320, [['葉子', PSC_CREAM], ['一片片', PSC_YELLOW], ['飄落，', PSC_CREAM]], 34, op);
+  g += pa_richLeft(150, 370, [['輕輕', PSC_YELLOW], ['對大地說：晚安。', PSC_CREAM]], 34, op);
+  const tagOp = pscK(u, 0.8, 1.25);
+  g += pscTag(1130, 210, 330, '擬聲、疊詞', tagOp);
+  return pscPaint(g);
+}
+
+function pa_senseIcon(cx, cy, kind, op, flash) {
+  if (op <= 0.001) return '';
+  let art = '';
+  if (kind === 'eye') art = '<path d="M-20 0 Q0-20 20 0 Q0 20-20 0Z"/><circle cx="0" cy="0" r="5" fill="currentColor"/>';
+  if (kind === 'ear') art = '<path d="M12-7 C12-19-4-22-12-13 C-19-5-12 1-10 7 C-8 12-8 19 0 19 C6 19 9 15 9 10"/><path d="M2-9 C7-8 8-2 4 2 C1 5 0 8 2 10"/>';
+  if (kind === 'hand') art = '<path d="M-13 3 L-13-8 Q-13-12-9-12 Q-5-12-5-8 L-5 0 L-4-17 Q-4-21 0-21 Q4-21 4-17 L4 0 L5-14 Q5-18 9-18 Q13-18 13-14 L13 2 L14-8 Q14-12 18-11 Q22-10 21-6 L19 10 Q17 20 7 21 L-2 21 Q-9 20-13 12Z"/>';
+  const fill = flash > 0.1 ? `rgba(242,193,78,${(0.18 * flash).toFixed(3)})` : 'rgba(12,22,36,.12)';
+  return `<g transform="translate(${cx} ${cy})" opacity="${pscO(op)}" color="${PSC_CREAM}"><rect x="-30" y="-30" width="60" height="60" rx="12" fill="${fill}" stroke="${PSC_YELLOW}" stroke-width="3" stroke-dasharray="8 6"/><g fill="none" stroke="${PSC_CREAM}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">${art}</g></g>`;
+}
+
+function s10(u) {
+  PscGL.show('a-s10', u, 14);
+  let g = pscHead(u, 9);
+  const titleOp = pscK(u, 0.3, 0.8);
+  if (titleOp > 0.001) {
+    g += `<rect x="600" y="230" width="400" height="72" rx="18" fill="rgba(12,22,36,.9)" stroke="${PSC_YELLOW}" stroke-width="4" opacity="${pscO(titleOp)}"/>`;
+    g += pscPhrase(800, 279, '〈大海〉', 40, PSC_YELLOW, titleOp, 'middle');
+  }
+  const rows = [[340, 400], [480, 540], [620, 680]];
+  rows.forEach(([top, bottom], i) => {
+    const op = pscK(u, 0.7, 1.1);
+    const flash = pscFlash(u, 10 + i);
+    g += pscBlock(360, top, 880, 52, PSC_YELLOW, op, true, flash);
+    g += pscPhrase(390, top + 36, '＿＿灑在＿＿，', 30, 'rgba(242,193,78,.82)', op);
+    g += pscBlock(360, bottom, 880, 52, PSC_YELLOW, op, true, flash);
+    g += pa_senseIcon(1320, [400, 520, 640][i], ['eye', 'ear', 'hand'][i], op, flash);
+  });
+  const questionOp = pscK(u, 9, 9.35);
+  g += pscTag(1180, 740, 300, '你看到什麼畫面？', questionOp);
+  return pscPaint(g);
+}
+
+// 主 session 修正：原呼叫的 pscRichPhrase 不存在（執行錯誤），補一個靠左的多色字小工具，外觀同 pscRich。
+function pa_richLeft(x, y, parts, size = 30, op = 1) {
+  if (op <= 0.001) return '';
+  const spans = parts.map(([t, c]) => `<tspan fill="${c}" style="fill:${c}">${esc(t)}</tspan>`).join('');
+  return `<text x="${x}" y="${y}" class="t-chalk" font-size="${size}" font-weight="700" text-anchor="start" fill="${PSC_CREAM}" opacity="${pscO(op)}">${spans}</text>`;
+}
+
+// ===================== psc-part-b.js：g6-08 分工 B（段 s1、s3、s6、s7、s9）=====================
+// 小工具前綴 pb_；three 場景 id：'b-s1'、'b-s3'、'b-s6'。build 只執行一次；update(u) 只改位置、顏色、透明度，畫面只由 u 決定。
+
+// 舞台座標（1600×900，y 向下）→ 正交相機世界座標（原點在舞台中心，y 向上）
+const pb_W = (sx, sy) => [sx - 800, 450 - sy];
+// 段內淡入淡出用的群組（群組只帶 opacity，不帶 stroke；字不放在有 stroke 的群組裡）
+const pb_fade = (op, inner) => (op <= 0.001 ? '' : `<g opacity="${pscO(op)}">${inner}</g>`);
+// 詩句卡：半透明深底圓角矩形（獨立元素，不包住文字）
+const pb_card = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="rgba(26,43,35,.82)" stroke="rgba(239,233,216,.55)" stroke-width="3"/>`;
+// 多色一行，靠左對齊（詩句用；parts＝[[文字, 顏色], …]）
+const pb_richLeft = (x, y, parts, size = 34) => `<text x="${x}" y="${y}" class="t-chalk" font-size="${size}" font-weight="700" text-anchor="start" fill="${PSC_CREAM}">` +
+  parts.map(([t, c]) => `<tspan fill="${c}" style="fill:${c}">${esc(t)}</tspan>`).join('') + '</text>';
+
+// build 時用 Canvas 畫的漸層貼圖（天空、牆面等）
+function pb_gradTex(THREE, stops) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+  stops.forEach(([o, col]) => gr.addColorStop(o, col));
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  return t;
+}
+// 圓形柔光貼圖（月暈、星點共用）
+function pb_glowTex(THREE) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,248,226,1)'); gr.addColorStop(0.2, 'rgba(255,240,200,.5)'); gr.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  return t;
+}
+// 星點：toWorld(sx, sy) 給三維座標；reject 為真的舞台位置不放星（例如詩句卡底下）。回傳 update(u) 讓星點慢慢閃
+function pb_stars(THREE, scene, n, seed, toWorld, reject) {
+  const pos = [], base = [];
+  for (let i = 0; base.length < n && i < n * 30; i++) {
+    const sx = PscGL.rand(i, seed) * 1600, sy = PscGL.rand(i, seed + 1) * 560;
+    if (reject && reject(sx, sy)) continue;
+    pos.push(...toWorld(sx, sy)); base.push(0.45 + 0.55 * PscGL.rand(i, seed + 2));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const col = new THREE.BufferAttribute(new Float32Array(base.length * 3), 3);
+  geo.setAttribute('color', col);
+  const mat = new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, map: pb_glowTex(THREE), vertexColors: true, transparent: true, depthWrite: false });
+  scene.add(new THREE.Points(geo, mat));
+  return (u) => {
+    base.forEach((b, i) => { const k = b * (0.84 + 0.16 * Math.sin(u * 0.9 + i * 1.7)); col.setXYZ(i, k, k * 0.96, k * 0.82); });
+    col.needsUpdate = true;
+  };
+}
+
+// ===== s1 童詩不是只有字少：左右兩張字卡＋小窗裡的夜海月光路 =====
+function s1(u) {
+  PscGL.show('b-s1', u, 14);
+  let g = pb_fade(pscK(u, 0.5, 1.0), box(110, 280, 620, 200) +
+    pscPhrase(150, 360, '晚上月亮出來了，月光照在海上、', 30, 'rgba(239,233,216,.78)') +
+    pscPhrase(150, 410, '樹上和窗戶上，很漂亮。', 30, 'rgba(239,233,216,.78)'));
+  g += pb_fade(pscK(u, 2.5, 3.0), box(870, 280, 620, 140) +
+    pscPhrase(910, 334, '月光灑在海上，', 34, PSC_CREAM) +
+    pscPhrase(910, 384, '海浪鋪成一條銀色的路；', 34, PSC_CREAM));
+  g += pscLabel(420, 620, '字少，畫面多', 36, PSC_YELLOW, pscK(u, 8.5, 9.0));
+  g += pb_fade(pscK(u, 0.5, 1.0), box(866, 446, 628, 348)); // 小窗外圍的白粉筆細框
+  return pscPaint(pscHead(u, 0) + g);
+}
+PscGL.register('b-s1', (THREE) => {
+  const scene = new THREE.Scene();
+  // 小窗：相機水平看出去，地平線在窗的正中央；月亮在夜空上方，月光路從地平線鋪到窗底
+  const cam = new THREE.PerspectiveCamera(50, 620 / 340, 0.1, 3000);
+  cam.position.set(0, 8, 0); cam.lookAt(0, 8, -100);
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(2400, 1400), new THREE.MeshBasicMaterial({
+    map: pb_gradTex(THREE, [[0, '#03091a'], [0.38, '#0b1d38'], [0.5, '#1b3d62'], [0.56, '#102a48'], [1, '#0a2038']]), depthWrite: false }));
+  sky.position.set(0, 8, -1200); scene.add(sky);
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(3000, 1100), new THREE.MeshBasicMaterial({ color: 0x0a2238 }));
+  sea.rotation.x = -Math.PI / 2; sea.position.set(0, 0, -556); scene.add(sea);
+  const stars = pb_stars(THREE, scene, 46, 11, (sx, sy) => [(sx - 800) * 0.9, 8 + sy * 0.4, -900]);
+  const moonPos = [0, 96, -520];
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshBasicMaterial({ color: 0xfff4d6 }));
+  moon.position.set(...moonPos); scene.add(moon);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: pb_glowTex(THREE), color: 0xffe9b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.45 }));
+  halo.position.set(...moonPos); halo.scale.set(150, 150, 1); scene.add(halo);
+  // 月光路：梯形水面（外暈、內亮兩層），頂點依距離分級；遠處（靠近月亮）先亮、近處後亮，約 u 4–8 慢慢鋪到眼前
+  const near = 17, far = 520, K = 16;
+  const seaC = new THREE.Color(0x0a2238), goldC = new THREE.Color(0xfff0b8);
+  const ds = Array.from({ length: K + 1 }, (_, k) => near * Math.pow(far / near, k / K));
+  const layers = [[(d) => 1.2 + 0.035 * d, 0.4, 1], [(d) => 0.6 + 0.02 * d, 1, 2]].map(([hw, peak, order]) => {
+    const sh = new THREE.Shape();
+    ds.forEach((d, k) => (k ? sh.lineTo(-hw(d), d) : sh.moveTo(-hw(d), d)));
+    for (let k = K; k >= 0; k--) sh.lineTo(hw(ds[k]), ds[k]);
+    const geo = new THREE.ShapeGeometry(sh);
+    const cnt = geo.attributes.position.count, cols = new THREE.BufferAttribute(new Float32Array(cnt * 3), 3);
+    geo.setAttribute('color', cols);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, depthTest: false }));
+    mesh.rotation.x = -Math.PI / 2; mesh.renderOrder = order; scene.add(mesh);
+    const dd = [], ph = [];
+    for (let j = 0; j < cnt; j++) {
+      const d = geo.attributes.position.getY(j), gg = Math.log(d / near) / Math.log(far / near);
+      dd.push(d); ph.push(4 + 3.2 * (1 - gg));
+    }
+    return { cols, cnt, dd, ph, peak };
+  });
+  return {
+    scene, camera: cam, viewport: { x: 870, y: 450, w: 620, h: 340 },
+    update(u) {
+      stars(u);
+      halo.material.opacity = 0.42 + 0.06 * Math.sin(u * 0.7);
+      layers.forEach(({ cols, cnt, dd, ph, peak }) => {
+        for (let j = 0; j < cnt; j++) {
+          const b = peak * pscK(u, ph[j], ph[j] + 1.0) * (0.92 + 0.08 * Math.sin(u * 1.1 + dd[j] * 0.25));
+          cols.setXYZ(j, seaC.r + (goldC.r - seaC.r) * b, seaC.g + (goldC.g - seaC.g) * b, seaC.b + (goldC.b - seaC.b) * b);
+        }
+        cols.needsUpdate = true;
+      });
+    },
+  };
+});
+// 正交相機用的山脊剪影：pts 為舞台座標（x 須由 0 到 1600），下方補到畫面底
+function pb_ridge(THREE, scene, pts, color, z) {
+  const sh = new THREE.Shape();
+  pts.forEach(([sx, sy], i) => { const [x, y] = pb_W(sx, sy); if (i) sh.lineTo(x, y); else sh.moveTo(x, y); });
+  sh.lineTo(...pb_W(1600, 900)); sh.lineTo(...pb_W(0, 900));
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color }));
+  m.position.z = z; scene.add(m);
+}
+
+// ===== s3 月亮像一盞燈：詩句卡＋山後升起的月、慢慢點亮的光暈 =====
+function s3(u) {
+  PscGL.show('b-s3', u, 15);
+  let g = pb_fade(pscK(u, 0.3, 0.9), pb_card(110, 230, 650, 160) +
+    pb_richLeft(150, 298, [['月亮', PSC_YELLOW], ['悄悄爬上山頭，', PSC_CREAM]]) +
+    pb_richLeft(150, 348, [['像一盞剛點亮的', PSC_CREAM], ['燈', PSC_YELLOW], ['。', PSC_CREAM]]));
+  g += pscTag(620, 306, 120, '比喻', pscK(u, 1.5, 2.0));
+  return pscPaint(pscHead(u, 2) + g);
+}
+PscGL.register('b-s3', (THREE) => {
+  const scene = new THREE.Scene();
+  const cam = new THREE.OrthographicCamera(-800, 800, 450, -450, 0.1, 2000);
+  cam.position.set(0, 0, 1000);
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(1600, 900), new THREE.MeshBasicMaterial({
+    map: pb_gradTex(THREE, [[0, '#050e1d'], [0.5, '#0d2442'], [0.78, '#1a3a5e'], [1, '#203f63']]), depthWrite: false }));
+  sky.position.set(0, 0, -900); scene.add(sky);
+  const stars = pb_stars(THREE, scene, 120, 23, (sx, sy) => [...pb_W(sx, sy), -850], (sx, sy) => sx < 790 && sy < 410);
+  // 月：先藏在山脊後面，u 1–7 緩緩升起；暗色到亮色，光暈 u 6–10 由小變大
+  const dimC = new THREE.Color(0x6b7a95), brightC = new THREE.Color(0xfff4d8);
+  const moon = new THREE.Group(); moon.position.set(330, 0, -800); scene.add(moon);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(50, 64), new THREE.MeshBasicMaterial({ color: 0x6b7a95 }));
+  moon.add(disc);
+  [[-18, 12, 9], [14, -16, 6], [22, 20, 5]].forEach(([x, y, r]) => {
+    const c = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshBasicMaterial({ color: 0xc9bd98, transparent: true, opacity: 0.35, depthWrite: false }));
+    c.position.set(x, y, 0.1); moon.add(c);
+  });
+  const haloM = new THREE.SpriteMaterial({ map: pb_glowTex(THREE), color: 0xffd98a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+  const halo = new THREE.Sprite(haloM); halo.scale.set(120, 120, 1); moon.add(halo);
+  // 山：遠山較亮、近山較暗，兩層剪影；1130 那座山峰是月亮升起的地方
+  pb_ridge(THREE, scene, [[0, 640], [140, 600], [300, 650], [470, 560], [640, 600], [800, 520], [960, 560], [1060, 500], [1130, 470], [1230, 520], [1320, 500], [1420, 540], [1520, 500], [1600, 540]], 0x17324f, -400);
+  pb_ridge(THREE, scene, [[0, 760], [170, 700], [380, 740], [560, 690], [760, 740], [960, 690], [1160, 650], [1340, 700], [1500, 660], [1600, 690]], 0x0b1a2c, -200);
+  return {
+    scene, camera: cam, viewport: { x: 0, y: 0, w: 1600, h: 900 },
+    update(u) {
+      stars(u);
+      const k = ease(P(u, 1, 7)), h = ease(P(u, 6, 10));
+      moon.position.y = 450 - lerp(560, 300, k);
+      disc.material.color.copy(dimC).lerp(brightC, P(u, 1, 10));
+      halo.scale.setScalar(lerp(120, 360, h));
+      haloM.opacity = 0.9 * h;
+    },
+  };
+});
+
+// ===== s6 月光灑在窗前：窗、斜照的光塊、窗台上的貓；地上的貓影慢慢拉長 =====
+function pb_cat(THREE, mat) {
+  // 貓（坐姿剪影）：座尾為原點，舞台座標（y 向下）換成 three 座標時 y 取反；K 為縮放
+  const K = 0.8, V = (x, y) => new THREE.Vector2(x * K, -y * K);
+  const ell = (cx, cy, rx, ry, n = 36) => Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return V(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); });
+  const parts = [ell(0, -48, 44, 46), ell(18, -104, 30, 29), [V(-6, -122), V(2, -162), V(22, -128)], [V(14, -126), V(32, -160), V(40, -118)]];
+  // 尾巴：二次貝茲的帶狀多邊形，由根部細細往上翹
+  const P0 = [36, -18], P1 = [96, -6], P2 = [86, -100], N = 12, L = [], R = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, bx = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t * t * P2[0], by = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t * t * P2[1];
+    const tx = 2 * (1 - t) * (P1[0] - P0[0]) + 2 * t * (P2[0] - P1[0]), ty = 2 * (1 - t) * (P1[1] - P0[1]) + 2 * t * (P2[1] - P1[1]);
+    const len = Math.hypot(tx, ty), nx = -ty / len, ny = tx / len, w = (10 - 7 * t) / 2;
+    L.push(V(bx + nx * w, by + ny * w)); R.unshift(V(bx - nx * w, by - ny * w));
+  }
+  parts.push([...L, ...R]);
+  const g = new THREE.Group();
+  parts.forEach((pts) => { const m = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)), mat); g.add(m); });
+  return g;
+}
+PscGL.register('b-s6', (THREE) => {
+  const scene = new THREE.Scene();
+  const cam = new THREE.OrthographicCamera(-800, 800, 450, -450, 0.1, 2000);
+  cam.position.set(0, 0, 1000);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(1600, 900), new THREE.MeshBasicMaterial({
+    map: pb_gradTex(THREE, [[0, '#0a1728'], [0.7, '#15263d'], [1, '#1a2d46']]), depthWrite: false }));
+  wall.position.set(0, 0, -900); scene.add(wall);
+  const flat = (w, h, sx, sy, z, color, extra = {}) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, ...extra })); m.position.set(...pb_W(sx, sy), z); scene.add(m); return m; };
+  flat(1600, 200, 800, 800, -800, 0x0a1424);
+  flat(1600, 12, 800, 706, -799, 0x1c2f48);
+  // 窗：暖色窗框、夜空玻璃、十字窗櫺；窗內左上一輪月
+  flat(460, 370, 1110, 425, -700, 0xb07a4a);
+  const glass = new THREE.MeshBasicMaterial({ map: pb_gradTex(THREE, [[0, '#0b1830'], [1, '#1d3a5e']]), depthWrite: false });
+  const gm = new THREE.Mesh(new THREE.PlaneGeometry(428, 338), glass); gm.position.set(...pb_W(1110, 425), -695); scene.add(gm);
+  flat(16, 338, 1110, 425, -690, 0xb07a4a);
+  flat(428, 16, 1110, 425, -690, 0xb07a4a);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(30, 48), new THREE.MeshBasicMaterial({ color: 0xfff4d6 }));
+  moon.position.set(...pb_W(1000, 330), -688); scene.add(moon);
+  const haloM = new THREE.SpriteMaterial({ map: pb_glowTex(THREE), color: 0xdbe8ff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.35 });
+  const halo = new THREE.Sprite(haloM); halo.scale.set(150, 150, 1); halo.position.set(...pb_W(1000, 330), -687); scene.add(halo);
+  flat(500, 20, 1110, 616, -640, 0xb98152);
+  // 斜照進來的月光：地上一塊光、窗下一道淡淡的光束
+  const beamPts = (pts) => { const sh = new THREE.Shape(); pts.forEach(([sx, sy], i) => { const [x, y] = pb_W(sx, sy); if (i) sh.lineTo(x, y); else sh.moveTo(x, y); }); return new THREE.ShapeGeometry(sh); };
+  const patchM = new THREE.MeshBasicMaterial({ color: 0xf5e6b3, transparent: true, opacity: 0, depthWrite: false });
+  const patch = new THREE.Mesh(beamPts([[900, 715], [1260, 715], [1080, 835], [720, 835]]), patchM); patch.position.z = -600; scene.add(patch);
+  const beamM = new THREE.MeshBasicMaterial({ color: 0xf5e6b3, transparent: true, opacity: 0, depthWrite: false });
+  const beam = new THREE.Mesh(beamPts([[896, 594], [1324, 594], [1260, 715], [900, 715]]), beamM); beam.position.z = -610; scene.add(beam);
+  // 窗台上的貓（坐姿剪影），與地上的影子用同一個造型
+  const catM = new THREE.MeshBasicMaterial({ color: 0x050c16, side: THREE.DoubleSide });
+  const cat = pb_cat(THREE, catM); cat.position.set(...pb_W(1220, 606), -650); scene.add(cat);
+  // 地上的影子：與貓同形，壓扁、朝窗外反方向（左）拉長
+  const shadowM = new THREE.MeshBasicMaterial({ color: 0x07101d, side: THREE.DoubleSide });
+  const shadow = pb_cat(THREE, shadowM); shadow.position.set(...pb_W(1000, 800), -585); scene.add(shadow);
+  return {
+    scene, camera: cam, viewport: { x: 0, y: 0, w: 1600, h: 900 },
+    update(u) {
+      patchM.opacity = 0.28 * pscK(u, 0.8, 2.0);
+      beamM.opacity = 0.07 * pscK(u, 0.8, 2.0);
+      const s = ease(P(u, 3, 9));
+      shadow.scale.set(-lerp(0.55, 1.25, s), 0.3 + 0.03 * s, 1);
+      haloM.opacity = 0.35 + 0.03 * Math.sin(u * 0.8);
+    },
+  };
+});
+// s6 的詩句：詩句卡在左上，立體畫面（窗與貓影）在右與下
+function s6(u) {
+  PscGL.show('b-s6', u, 14);
+  let g = pb_fade(pscK(u, 0.3, 0.9), pb_card(110, 230, 650, 160) +
+    pb_richLeft(150, 298, [['月光', PSC_YELLOW], ['灑在窗前，', PSC_CREAM]]) +
+    pb_richLeft(150, 348, [['小貓的影子', PSC_CREAM], ['伸了個懶腰', PSC_YELLOW], ['。', PSC_CREAM]]));
+  g += pscTag(620, 306, 120, '擬人', pscK(u, 1.5, 2.0));
+  return pscPaint(pscHead(u, 5) + g);
+}
+// ===== s7 排比讓畫面一層層打開：三張句卡各配一幅 2D 小畫（海、樹、窗），最後一句收尾（不用立體）=====
+function pb_pic7(k, cx, op) {
+  if (op <= 0.001) return '';
+  if (k === 0) { // 海浪與月光
+    const wave = (y) => pscPath(`M${cx - 130} ${y} Q${cx - 95} ${y - 18} ${cx - 60} ${y} T${cx} ${y} T${cx + 60} ${y} T${cx + 130} ${y}`, PSC_BLUE, 5);
+    return pb_fade(op, wave(430) + wave(490) + wave(550) +
+      `<circle cx="${cx + 60}" cy="390" r="26" fill="none" stroke="${PSC_CREAM}" stroke-width="4"/>` +
+      pscLine(cx - 60, 448, cx + 60, 448, PSC_YELLOW, 4) + pscLine(cx - 40, 500, cx + 40, 500, PSC_YELLOW, 4) + pscLine(cx - 25, 552, cx + 25, 552, PSC_YELLOW, 4));
+  }
+  if (k === 1) { // 樹與白紗
+    return pb_fade(op, pscPath(`M${cx} 590 V470`, PSC_CREAM, 6) +
+      `<circle cx="${cx}" cy="440" r="56" fill="rgba(239,233,216,.06)" stroke="${PSC_CREAM}" stroke-width="4"/>` +
+      pscPath(`M${cx - 66} 462 Q${cx} 418 ${cx + 66} 462 L${cx + 66} 486 Q${cx} 452 ${cx - 66} 486 Z`, PSC_CREAM, 2, 0.85, 'rgba(239,233,216,.3)'));
+  }
+  // 窗與貓影：窗框、月光落在地上的光塊，貓的剪影
+  return pb_fade(op, pscPath(`M${cx - 100} 500 H${cx + 100} L${cx + 124} 560 H${cx - 124} Z`, PSC_YELLOW, 2, 0.8, 'rgba(242,193,78,.22)') +
+    pscPath(`M${cx - 60} 400 H${cx + 60} V490 H${cx - 60} Z`, PSC_CREAM, 5, 1, 'rgba(239,233,216,.06)') +
+    pscLine(cx, 400, cx, 490, PSC_CREAM, 3) + pscLine(cx - 60, 445, cx + 60, 445, PSC_CREAM, 3) +
+    `<path d="M${cx - 44} 560 Q${cx - 34} 520 ${cx} 526 Q${cx + 30} 520 ${cx + 40} 560 Z" fill="#050c16"/>` +
+    `<circle cx="${cx + 22}" cy="516" r="14" fill="#050c16"/>`);
+}
+function s7(u) {
+  PscGL.show(null, u, 13);
+  const rows = [[110, 0.5, '海上，'], [580, 2.0, '樹梢，'], [1050, 3.5, '窗前，']];
+  let g = '';
+  rows.forEach(([x, s, tail], k) => {
+    const cx = x + 220;
+    g += pb_fade(pscK(u, s, s + 0.5), box(x, 280, 440, 330) + pscRich(cx, 335, [['月光灑在', PSC_YELLOW], [tail, PSC_CREAM]], 34));
+    g += pb_pic7(k, cx, pscK(u, s + 0.4, s + 1.2));
+  });
+  g += pb_fade(pscK(u, 7, 7.5), box(450, 660, 700, 72) + pscLabel(800, 706, '句型一樣，景物換一個', 30, PSC_CREAM));
+  return pscPaint(pscHead(u, 6) + g);
+}
+
+// ===== s9 寫景童詩四步：四張卡各配一個小圖示＋詞語，卡與卡之間的箭頭（不用立體）=====
+// 卡的 x 起點為 65、445、825、1205（分鏡表原為 90、470、850、1230；右側會貼到 60px 安全邊界，故整體左移 25px，間距 50 不變）
+function pb_icon9(k, cx, cy, op) {
+  const C = PSC_CREAM;
+  if (k === 0) return pb_fade(op, `<rect x="${cx - 40}" y="${cy - 32}" width="80" height="64" rx="6" fill="none" stroke="${C}" stroke-width="4"/>` +
+    `<circle cx="${cx + 14}" cy="${cy - 12}" r="9" fill="${PSC_YELLOW}"/>` +
+    pscPath(`M${cx - 40} ${cy + 24} Q${cx - 18} ${cy + 2} ${cx + 4} ${cy + 18} T${cx + 40} ${cy + 12}`, C, 3));
+  if (k === 1) return pb_fade(op, pscPath(`M${cx - 40} ${cy} Q${cx} ${cy - 34} ${cx + 40} ${cy} Q${cx} ${cy + 34} ${cx - 40} ${cy} Z`, C, 4) +
+    `<circle cx="${cx}" cy="${cy}" r="13" fill="${PSC_BLUE}"/><circle cx="${cx}" cy="${cy}" r="5" fill="${PSC_DEEP}"/>`);
+  if (k === 2) return pb_fade(op, `<circle cx="${cx}" cy="${cy - 8}" r="22" fill="rgba(242,193,78,.35)" stroke="${PSC_YELLOW}" stroke-width="4"/>` +
+    pscPath(`M${cx - 12} ${cy + 14} H${cx + 12} V${cy + 28} H${cx - 12} Z`, C, 3));
+  return pb_fade(op, pscPath(`M${cx} ${cy + 28} C${cx - 50} ${cy - 6} ${cx - 22} ${cy - 36} ${cx} ${cy - 14} C${cx + 22} ${cy - 36} ${cx + 50} ${cy - 6} ${cx} ${cy + 28} Z`, PSC_ORANGE, 4, 1, 'rgba(232,135,91,.45)'));
+}
+function s9(u) {
+  PscGL.show(null, u, 14);
+  const titles = ['①選景', '②五感', '③比喻或擬人', '④感受'];
+  const words = [['月夜'], ['眼：月光', '耳：沙沙', '手：涼涼的風'], ['像一盞燈', '伸了個懶腰'], ['安靜', '溫柔']];
+  const xs = [65, 445, 825, 1205], starts = [0.5, 2.5, 4.5, 6.5];
+  let g = '';
+  xs.forEach((x, i) => {
+    const cx = x + 165, s = starts[i];
+    g += pb_fade(pscK(u, s, s + 0.5), box(x, 280, 330, 380) + pscLabel(cx, 330, titles[i], 34, PSC_YELLOW));
+    g += pb_icon9(i, cx, 400, pscK(u, s + 0.4, s + 1.2));
+    words[i].forEach((w, j) => { g += pscLabel(cx, 500 + 48 * j, w, 30, PSC_CREAM, pscK(u, s + 0.6, s + 1.4)); });
+  });
+  [0, 1, 2].forEach((i) => { g += pscArrowTo(xs[i] + 336, 470, xs[i + 1] - 6, 470, 1, pscK(u, 8 + 0.6 * i, 8.8 + 0.6 * i), 14); });
+  return pscPaint(pscHead(u, 8) + g);
+}
+
+const SEGS = [
+  { len: 14, grp: "開場", name: "童詩不是只有字少", scene: s1,
+    cap: "同樣是月光照在海上：散文一句話寫完；童詩<b>字少</b>，卻讓你看見一條銀色的路。童詩不是只有字少，每一句都藏著<b>畫面</b>。（詩句自編；畫面是想像的示意）" },
+  { len: 12, grp: "格式", name: "分行、分節", scene: s2,
+    cap: "童詩要<b>分行</b>寫，一句一行；也不分段，而是<b>分節</b>。字句精短，留下讓人想像的空間。" },
+  { len: 15, grp: "畫面", name: "月亮像一盞燈", scene: s3,
+    cap: "「月亮悄悄爬上山頭，像一盞剛點亮的燈。」把月亮比成燈，這是<b>比喻</b>——讀著讀著，你好像看見燈一點一點亮起來。" },
+  { len: 15, grp: "畫面", name: "月光灑在海上", scene: s4,
+    cap: "「月光灑在海上，海浪鋪成一條銀色的路。」一句話，就讓海面出現一條閃閃發亮的路。" },
+  { len: 14, grp: "畫面", name: "月光灑在樹梢", scene: s5,
+    cap: "「月光灑在樹梢，葉子輕輕披上白紗。」月光照在葉子上，像蓋上一層薄薄的白紗。" },
+  { len: 14, grp: "畫面", name: "月光灑在窗前", scene: s6,
+    cap: "「月光灑在窗前，小貓的影子伸了個懶腰。」影子會伸懶腰嗎？把東西寫得像人一樣，這是<b>擬人</b>。" },
+  { len: 13, grp: "修辭", name: "排比讓畫面一層層打開", scene: s7,
+    cap: "三句都用「月光灑在……」開頭，句型一樣、景物換一個，這是<b>排比</b>：畫面從海、到樹、到窗前，一層一層打開。" },
+  { len: 16, grp: "畫面", name: "夜風沙沙，落葉紛紛", scene: s8,
+    cap: "「夜風沙沙地吹，葉子一片片飄落。」<b>沙沙</b>是聲音（擬聲），<b>一片片、輕輕</b>是疊詞，讓詩讀起來有節奏，也聽得見、看得見。" },
+  { len: 14, grp: "方法", name: "寫景童詩四步", scene: s9,
+    cap: "寫景童詩可以這樣想：先<b>選景</b>；再用<b>五感</b>找詞——看到、聽到、摸到；接著用<b>比喻或擬人</b>讓景活起來；最後寫出你的<b>感受</b>。" },
+  { len: 14, grp: "練習", name: "換你寫〈大海〉", scene: s10,
+    cap: "換你寫〈大海〉：閉上眼睛，你看到什麼、聽到什麼？試著用「＿＿灑在＿＿」寫三句排比，讓每一句都長出一幅畫。" },
+];
+
+// ===================== 工具（通常不用改）=====================
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const P = (u, a, b) => clamp((u - a) / (b - a), 0, 1);           // u 在 [a,b] 的進度 0–1
+const ease = (x) => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const lerp = (a, b, k) => a + (b - a) * k;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); } // 固定種子亂數
+function txt(x, y, s, o = {}) {
+  const a = o.a || 'start', size = o.s || 32, fill = o.f || 'var(--chalk)', op = o.o ?? 1, w = o.w ? 700 : 400, cls = o.c || 't-chalk';
+  return `<text x="${x}" y="${y}" class="${cls}" font-size="${size}" font-weight="${w}" text-anchor="${a}" fill="${fill}" opacity="${op}">${esc(s)}</text>`;
+}
+function box(x, y, w, h, stroke = 'var(--chalk)', op = 1, fill = 'none') {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="3" opacity="${op}"/>`;
+}
+function head(u, kicker, title) {
+  const o = ease(P(u, 0, 0.8));
+  return txt(80, 90, kicker, { c: 't-body', s: 24, f: 'var(--chalk-dim)', o }) + txt(80, 150, title, { s: 50, w: 1, o });
+}
+
+let acc = 0; SEGS.forEach((s) => { s.a = acc; acc += s.len; s.b = acc; });
+window.DURATION = acc;
+window.SEGS = SEGS.map(({ len, grp, name, cap, a, b }) => ({ len, grp, name, cap, a, b }));
+const stage = document.getElementById('stage'), capEl = document.getElementById('caption');
+const segIndex = (t) => { for (let i = 0; i < SEGS.length; i++) if (t < SEGS[i].b) return i; return SEGS.length - 1; };
+window.seek = async function (t) {
+  t = clamp(Number(t) || 0, 0, window.DURATION);
+  const i = segIndex(t), s = SEGS[i];
+  const u = t - s.a;
+  // 段落切換時淡入淡出（只由 t 決定）
+  const fade = Math.min(P(u, 0, 0.35), i === SEGS.length - 1 ? 1 : 1 - P(u, s.len - 0.35, s.len));
+  stage.innerHTML = `<g opacity="${fade.toFixed(3)}">${s.scene(u)}</g>` +
+    txt(1520, 870, `${i + 1} / ${SEGS.length}・${s.grp}・${s.name}`, { a: 'end', c: 't-body', s: 18, f: 'var(--chalk-dim)' });
+  capEl.innerHTML = s.cap; // 字幕只來自本檔 SEGS（作者撰寫、只含 <b>）
+  return true;
+};
+window.ready = Promise.all([document.fonts ? document.fonts.ready.catch(() => null) : null]);
+
+// ===================== 播放器外殼（只呼叫 seek）=====================
+document.title = META.title;
+document.getElementById('title').textContent = META.title;
+document.getElementById('subtitle').textContent = META.subtitle;
+document.getElementById('note').textContent = META.note;
+stage.setAttribute('aria-label', META.ariaLabel);
+const works = document.getElementById('works');
+if (!META.works.length) document.querySelector('.works').hidden = true;
+for (const [label, desc, href] of META.works) {
+  const li = document.createElement('li'), a = document.createElement('a'), sp = document.createElement('span');
+  a.href = href; a.textContent = label; a.target = '_blank'; a.rel = 'noopener'; sp.textContent = desc;
+  li.append(a, sp); works.append(li);
+}
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time');
+scrub.max = window.DURATION;
+// 分段刻度：每段分界一條細線（段落起點／總長）；刻度只畫在 #seekMarks，不影響 range 本身
+const playerMarks = document.getElementById('seekMarks');
+SEGS.forEach((s, i) => { if (i > 0) { const d = document.createElement('i'); d.style.left = (s.a / window.DURATION * 100) + '%'; playerMarks.append(d); } });
+// 進度條列收合：預設收起；只有獨立播放（非 embed）才讀寫 localStorage 的 UI 狀態，embed 一律不碰；不可用時只留在記憶體
+const playerEmbed = document.documentElement.classList.contains('embed');
+const playerUiGet = (k) => { if (playerEmbed) return false; try { return localStorage.getItem(k) === '1'; } catch { return false; } };
+const playerUiSet = (k, v) => { if (playerEmbed) return; try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+let playerSeekOpen = playerUiGet('anim.ui.seek');
+const playerToggle = document.getElementById('toggleSeek'), playerSeekRow = document.getElementById('seekrow');
+function playerApplyUi() {
+  playerSeekRow.hidden = !playerSeekOpen;
+  playerToggle.setAttribute('aria-expanded', String(playerSeekOpen));
+  playerToggle.textContent = playerSeekOpen ? '進度條 ▾' : '進度條 ▸';
+}
+playerToggle.onclick = () => { playerSeekOpen = !playerSeekOpen; playerUiSet('anim.ui.seek', playerSeekOpen); playerApplyUi(); };
+playerApplyUi();
+// ===== 標註工具（手寫筆跡＋文字；以段落為單位、只存在記憶體、不送網路）=====
+// 與研習平台頁同一套操作：畫筆、文字、5 色色票、收回上一筆、清除本段標註；「標註工具 ▸／▾」可收合（預設收起，鍵 anim.ui.ink）。
+// ?embed=1 完全不啟用（研習平台自己有標註）。座標一律存 0–1 的相對位置，舞台縮放或長寬比改變時筆跡仍落在同一處。
+(() => {
+  if (document.documentElement.classList.contains('embed')) return;
+  const stageEl = document.getElementById('stage') || document.getElementById('c');
+  const ctl = document.querySelector('.controls') || document.getElementById('bar');
+  if (!stageEl || !ctl || typeof window.seek !== 'function') return;
+  const COLORS = ['#efe9d8', '#f2c14e', '#e8875b', '#7fb6d9', '#8fd18a'];
+  const ends = typeof SEGS !== 'undefined' ? SEGS.map((s) => s.b) : TIMING.map((s) => s.end);
+  const segOf = (t) => { for (let i = 0; i < ends.length; i++) if (t < ends[i]) return i; return ends.length - 1; };
+  const uiGet = () => { try { return localStorage.getItem('anim.ui.ink') === '1'; } catch { return false; } };
+  const uiSet = (v) => { try { localStorage.setItem('anim.ui.ink', v ? '1' : '0'); } catch { /* 不可用時只留在記憶體 */ } };
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  const store = new Map(); // 段落索引 → [{k:'s',color,pts} | {k:'l',x,y,text,color}]（依畫下順序）
+  const items = (i) => { let a = store.get(i); if (!a) store.set(i, (a = [])); return a; };
+  let seg = 0, tool = null, penColor = COLORS[1], drawing = null, labelAt = null, open = uiGet();
+
+  // 標註層：有 .board 就掛在木框內（與 SVG 同尺寸）；沒有（如純 canvas 舞台）就掛在舞台父層並追蹤舞台矩形
+  const board = stageEl.closest('.board'), host = board || stageEl.parentElement;
+  if (!board) host.style.position = 'relative';
+  const layer = mk('div', 'annoLayer'), cv = mk('canvas'), labels = mk('div', 'annoLabels'), inp = mk('input', 'annoInput');
+  cv.setAttribute('aria-label', '標註區');
+  inp.type = 'text'; inp.maxLength = 60; inp.hidden = true; inp.placeholder = '輸入文字，按 Enter 放上；Esc 取消'; inp.setAttribute('aria-label', '文字標註');
+  layer.append(cv, labels, inp); host.append(layer);
+  const ctx = cv.getContext('2d');
+
+  // 工具列（控制列第三列）與切換鈕
+  const toggle = mk('button', '', '標註工具 ▸'), row = mk('div', 'annoRow');
+  toggle.id = 'toggleInk'; toggle.type = 'button'; toggle.setAttribute('aria-controls', 'annoTools'); toggle.setAttribute('aria-expanded', 'false');
+  row.id = 'annoTools'; row.hidden = true;
+  const penBtn = mk('button', '', '畫筆'), textBtn = mk('button', '', '文字'), sw = mk('span', 'annoSwatches'), undoBtn = mk('button', '', '收回上一筆'), clearBtn = mk('button', '', '清除本段標註');
+  for (const b of [penBtn, textBtn, undoBtn, clearBtn]) b.type = 'button';
+  penBtn.setAttribute('aria-pressed', 'false'); textBtn.setAttribute('aria-pressed', 'false');
+  const swBtns = COLORS.map((c, i) => {
+    const b = mk('button', 'annoSwatch'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', `顏色 ${i + 1}`); b.setAttribute('aria-pressed', c === penColor ? 'true' : 'false');
+    b.onclick = () => { penColor = c; swBtns.forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); if (labelAt) { inp.style.color = c; inp.focus(); } else if (!tool) setTool('pen'); };
+    sw.append(b); return b;
+  });
+  row.append(penBtn, textBtn, sw, undoBtn, clearBtn);
+  const seekToggle = document.getElementById('toggleSeek');
+  if (seekToggle && seekToggle.parentNode === ctl) seekToggle.after(toggle); else ctl.append(toggle);
+  ctl.append(row);
+
+  function fit() {
+    if (!board) { layer.style.inset = 'auto'; Object.assign(layer.style, { left: stageEl.offsetLeft + 'px', top: stageEl.offsetTop + 'px', width: stageEl.offsetWidth + 'px', height: stageEl.offsetHeight + 'px' }); }
+    const w = layer.clientWidth, h = layer.clientHeight, d = window.devicePixelRatio || 1;
+    layer.style.setProperty('--u', (w / 1600) + 'px');
+    cv.width = Math.max(1, Math.round(w * d)); cv.height = Math.max(1, Math.round(h * d));
+    redraw();
+  }
+  function strokePath(s) {
+    const p = s.pts, W = cv.width, H = cv.height, d = W / (layer.clientWidth || W);
+    if (p.length < 4) return;
+    ctx.strokeStyle = s.color; ctx.lineWidth = Math.max(2 * d, 5 * W / 1600); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(p[0] * W, p[1] * H);
+    for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * W, p[i + 1] * H);
+    ctx.stroke();
+  }
+  function redraw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (const it of items(seg)) if (it.k === 's') strokePath(it);
+    if (drawing && drawing.seg === seg) strokePath(drawing);
+  }
+  function renderLabels() {
+    labels.replaceChildren(...items(seg).filter((i) => i.k === 'l').map((l) => {
+      const d = mk('div', 'annoLabel', l.text);
+      d.style.left = (l.x * 100) + '%'; d.style.top = (l.y * 100) + '%'; d.style.color = l.color; d.style.borderColor = l.color;
+      return d;
+    }));
+  }
+  function setTool(t) {
+    tool = t;
+    penBtn.setAttribute('aria-pressed', t === 'pen' ? 'true' : 'false');
+    textBtn.setAttribute('aria-pressed', t === 'text' ? 'true' : 'false');
+    cv.classList.toggle('on', !!t); cv.classList.toggle('text-mode', t === 'text');
+    if (t !== 'text') closeInput();
+  }
+  function openInput(x, y) {
+    labelAt = { x, y, seg };
+    inp.value = ''; inp.style.left = (Math.min(x, 0.62) * 100) + '%'; inp.style.top = (Math.max(0.05, Math.min(y, 0.95)) * 100) + '%'; inp.style.color = penColor;
+    inp.hidden = false; requestAnimationFrame(() => inp.focus());
+  }
+  function closeInput() { inp.hidden = true; labelAt = null; }
+  function norm(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 10000) / 10000, Math.round(Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) * 10000) / 10000];
+  }
+  function endStroke() {
+    if (!drawing) return;
+    const s = drawing; drawing = null;
+    if (s.pts.length === 2) s.pts.push(s.pts[0] + 1 / 1600, s.pts[1] + 1 / 900); // 點一下也留下一個點
+    items(s.seg).push(s);
+    if (s.seg === seg) redraw();
+  }
+  cv.addEventListener('pointerdown', (e) => {
+    if (!tool) return;
+    e.preventDefault();
+    const [x, y] = norm(e);
+    if (tool === 'text') { openInput(x, y); return; }
+    cv.setPointerCapture(e.pointerId);
+    drawing = { k: 's', seg, color: penColor, pts: [x, y] };
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drawing) return;
+    const [x, y] = norm(e), p = drawing.pts, r = cv.getBoundingClientRect();
+    if (Math.hypot((x - p[p.length - 2]) * r.width, (y - p[p.length - 1]) * r.height) < 3 || p.length >= 800) return;
+    p.push(x, y); redraw();
+  });
+  cv.addEventListener('pointerup', endStroke);
+  cv.addEventListener('pointercancel', endStroke);
+  cv.addEventListener('click', (e) => e.stopPropagation()); // 全螢幕「點畫面播放／暫停」不被標註動作觸發
+  // 文字輸入：所有按鍵都不往上送，空白鍵、方向鍵、F 不會觸發播放器快捷鍵
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      const text = inp.value.trim();
+      if (text && labelAt) { items(labelAt.seg).push({ k: 'l', x: labelAt.x, y: labelAt.y, text, color: penColor }); if (labelAt.seg === seg) renderLabels(); }
+      closeInput();
+    } else if (e.key === 'Escape') closeInput();
+  });
+  inp.addEventListener('keyup', (e) => e.stopPropagation());
+  inp.addEventListener('blur', (e) => { if (e.relatedTarget && row.contains(e.relatedTarget)) return; closeInput(); }); // 點色票／按鈕時保留輸入，點別處就取消
+  penBtn.onclick = () => setTool(tool === 'pen' ? null : 'pen');
+  textBtn.onclick = () => setTool(tool === 'text' ? null : 'text');
+  undoBtn.onclick = () => { if (items(seg).pop()) { redraw(); renderLabels(); } };
+  clearBtn.onclick = () => { if (items(seg).length && confirm('清除本段所有筆跡與文字標註？')) { items(seg).length = 0; redraw(); renderLabels(); } };
+  function applyUi() {
+    row.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? '標註工具 ▾' : '標註工具 ▸';
+    if (!open) setTool(null);
+  }
+  toggle.onclick = () => { open = !open; uiSet(open); applyUi(); };
+  // 全螢幕下不放工具列；進入全螢幕時關閉畫筆，筆跡仍顯示（標註層在全螢幕元素內）
+  document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement) setTool(null); });
+  // 換段時顯示該段的標註：包住 seek，不改變 seek 的畫面與回傳值
+  const baseSeek = window.seek;
+  window.seek = async function (t) {
+    const r = await baseSeek.call(this, t);
+    const i = segOf(Number(t) || 0);
+    if (i !== seg) { seg = i; closeInput(); redraw(); renderLabels(); }
+    return r;
+  };
+  new ResizeObserver(fit).observe(board || stageEl);
+  applyUi(); fit();
+})();
+let cur = 0, playing = false, last = 0;
+const chap = document.getElementById('chapters');
+const btns = SEGS.map((s, i) => {
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button'; b.textContent = `${i + 1}・${s.name}`; b.onclick = () => { playerPause(); playerShow(s.a); };
+  li.append(b); chap.append(li); return b;
+});
+function playerShow(t) {
+  cur = clamp(t, 0, window.DURATION); scrub.value = cur;
+  timeEl.textContent = `${cur.toFixed(1)} / ${window.DURATION.toFixed(1)}`;
+  window.seek(cur);
+  const i = segIndex(cur); btns.forEach((b, j) => b.setAttribute('aria-current', j === i ? 'true' : 'false'));
+}
+function playerTick(now) { if (!playing) return; cur += (now - last) / 1000; last = now; if (cur >= window.DURATION) { cur = window.DURATION; playerPause(); } playerShow(cur); if (playing) requestAnimationFrame(playerTick); }
+function playerPlay() { if (cur >= window.DURATION - 0.05) cur = 0; playing = true; playBtn.textContent = '暫停'; last = performance.now(); requestAnimationFrame(playerTick); }
+function playerPause() { playing = false; playBtn.textContent = '播放'; }
+playBtn.onclick = () => (playing ? playerPause() : playerPlay());
+scrub.oninput = () => { playerPause(); playerShow(Number(scrub.value)); };
+document.getElementById('prev').onclick = () => { playerPause(); playerShow(SEGS[segIndex(cur - 0.6)].a); };
+document.getElementById('next').onclick = () => { playerPause(); const i = segIndex(cur) + 1; playerShow(i < SEGS.length ? SEGS[i].a : window.DURATION); };
+document.getElementById('fs').onclick = () => { const th = document.getElementById('theater'); document.fullscreenElement ? document.exitFullscreen() : th.requestFullscreen?.(); };
+addEventListener('keydown', (e) => {
+  if (document.documentElement.classList.contains('embed')) return;
+  if (e.target.closest('input,button')) return;
+  if (e.key === ' ') { e.preventDefault(); playing ? playerPause() : playerPlay(); }
+  else if (e.key === 'ArrowRight') document.getElementById('next').click();
+  else if (e.key === 'ArrowLeft') document.getElementById('prev').click();
+  else if (e.key === 'f' || e.key === 'F') document.getElementById('fs').click();
+});
+window.ready.then(() => playerShow(cur));
+// 研習平台嵌入契約（postMessage 握手，鍵名 ptt 為相容用）：被嵌入時才啟用
+addEventListener('message', (e) => {
+  if (e.source !== window.parent || window.parent === window) return;
+  const m = e.data;
+  if (!m || m.ptt !== 1 || m.type !== 'seek' || typeof m.t !== 'number' || !Number.isFinite(m.t)) return;
+  window.seek(m.t);
+});
+if (window.parent !== window) window.ready.then(() => parent.postMessage({ ptt: 1, type: 'ready', duration: window.DURATION }, '*'));
+</script>
+</html>
